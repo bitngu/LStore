@@ -31,7 +31,21 @@ class Query:
 
     def insert(self, *columns):
         schema_encoding = '0' * self.table.num_columns
-        pass
+        # Format the data for insertion by table
+        data = columns
+        # Call to the table to handle insertion into it's pages
+        write = self.table.write(data)
+        # Check that write returned successfully
+        if not write:
+            return False
+        # Perform a read to check that the data is there
+        # Needs to be formatted to work with table write
+        read = self.table.read(write)
+        # If the data is missing, return False
+        if not read:
+            return False
+        else:
+            return True
 
     """
     # Read a record with specified key
@@ -44,6 +58,8 @@ class Query:
     """
 
     def select(self, index_value, index_column, query_columns):
+        # Performs a table read to get the data
+        
         pass
     """
     # Update a record with specified key and columns
@@ -52,6 +68,10 @@ class Query:
     """
 
     def update(self, primary_key, *columns):
+        # Perform a table delete to remove the old record
+
+        # Add the updated information to the table with a table write
+
         pass
 
     """
@@ -67,7 +87,7 @@ class Query:
         pass
 
     """
-    incremenets one column of the record
+    increments one column of the record
     this implementation should work if your select and update queries already work
     :param key: the primary of key of the record to increment
     :param column: the column to increment

@@ -4,12 +4,10 @@ class Page:
     def __init__(self):
         self.num_records = 0
         self.data = bytearray(4096)
-        # Needs to add the bookkeeping to the end of the page as well
 
     def has_capacity(self):
         return self.num_records <= MAX_ENTRIES
 
-    # Needs to update bookkeeping
     def read(self, location):
         try:
             if location < 512:
@@ -19,7 +17,6 @@ class Page:
         except:
             return False 
 
-    # Needs to update bookkeeping
     def write(self, value):
         
         try:

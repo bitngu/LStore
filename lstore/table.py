@@ -26,43 +26,83 @@ class Table:
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        self.page_directory = {}
-        self.pages = []
+        self.page_directory = []
         self.index = Index(self)
         # Create pages and assign them to the self.pages list. Start with one for each column
         for i in range(0, num_columns):
-            # Create a new page
-            page = Page()
-            # Add the page to the pages list
-            self.pages.append(Page())
             # Add a reference to the column number in the page directory
-            self.page_directory[i] = [page] # This is a list to allow multiple pages if ones fill up
-        # There needs to be additional pages added to tie together disparate records I believe
-        # These are the pages that we will use in the read to tie together all the pages and return the full record based
-        # on the found slot in the page
-
+            self.page_directory.append({
+                'base': [Page()],
+                'tail': [Page()]
+            })
+        # Create RID page
+        self.RID = [Page()]
+        # Create Indirection page
+        self.indirection = [Page()]
+        # Create Schema page
+        self.schema = [Page()]
+        # Create Timestamp page
+        self.timestamp = [Page()]
         pass
 
-    # Looks in the pages corresponding to the provided column number
-    # Finds all slots in the pages that match
-    # Fill out the record from all pages based on the slot that was matched, only including the selected columns
-    # Returns all matching records or False if none
     def read(self, index_value, index_column, query_columns):
+        # Find the record in the index
+
+        # Only check the pages that are specified in the query_columns
+        for i in query_columns.len():
+            # Check if we want that column to be returned
+            if query_columns[i] == 1:
+                # Find the data
+                print('just here to stop errors')
         pass
 
-    # Adds a new slot to each column, adding the slot to the last open page in the page_directory for the column
-    # Look inside the bookkeeping for each page and check for any 0 (meaning a slot is available)
+    # Adds a new slot to each column, adding the slot to the base page in the page_directory for the column
     # If all pages in the page_directory for a column are full, create a new page and add it to that
     # Tie together the reference to each page so the full record can be retrieved
     def write(self, *columns):
+        # Add new entries into the RID page
+        rid = getEmptyPage(self.RID)
+        # Add new entries into the Indirection page
+        indirection = getEmptyPage(self.indirection)
+        # Add new entries into the schema page
+        schema = getEmptyPage(self.schema)
+        # Add new entries into the timestamp page
+        timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        # Check if current base page is full for each column and do the insert
+        for i in range(0, columns.len()):
+            # Find or create an empty page for base
+            page = getEmptyPage(self.page_directory[i].base)
+            # Perform the insert for that column
+            record = page.write(columns[i])
+            # Exit if the write did not work
+            if not record:
+                return False
+            # 
         pass
 
-    # Finds the record to be deleted based on the primary key and updates each page's bookkeeping to make 
-    #   the previously used slots available.
+    def update(self, *columns):
+       # Check if current tail page is full for each column and do the insert
+        for i in range(0, columns.len()):
+            # Find or create an empty page for tail
+            page = getEmptyPage(self.page_directory[i].tail)
+            # Perform the insert for that column
+
+        pass
+
+
     def delete(self, primary_key):
         pass
 
     def __merge(self):
         print("merge is happening")
         pass
+
+    # Internal helper function for getting or creating an empty page
+def getEmptyPage(self, pages):
+    # Check if the last page is empty
+    if not pages[-1].has_capacity():
+        pages.append(Page())
+    # Return the last page with space
+    return pages[-1]
+
  

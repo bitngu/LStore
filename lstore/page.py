@@ -36,7 +36,7 @@ class Page:
                 self.data[index:index + 4] = value.to_bytes( 4, 'big')
                 if is_inc:
                     self.num_records += 1
-                return True    
+                return self.num_records    
             return False 
         except:
             return False
@@ -51,7 +51,7 @@ class Page:
                     index = location * 8
                 self.data[index:index + 8] = value.to_bytes( 8, 'big')
                 self.num_records += 1
-                return True    
+                return self.num_records
             return False 
         except:
             return False

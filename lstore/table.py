@@ -98,7 +98,7 @@ class Table:
         pass
 
     # Internal helper function for getting or creating an empty page
-def getEmptyPage(self, pages):
+def getEmptyPage(pages):
     # Check if the last page is empty
     if not pages[-1].has_capacity():
         pages.append(Page())

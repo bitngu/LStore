@@ -74,7 +74,7 @@ class Table:
             if not recordLoc:
                 return False
         #RecordLoc should be the same across all columns
-        num_base = len(self.page_directory[0].base) * 512
+        num_base = (len(self.page_directory[0].base) - 1) * 512
         return self.set_meta( num_base + recordLoc)
         
 

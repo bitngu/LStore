@@ -63,18 +63,18 @@ class Table:
     # Tie together the reference to each page so the full record can be retrieved
     def write(self, *columns):
         # Add new entries into the timestamp page
-        timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        #timestampLoc = getEmptyPage(self.timestamp).write(time.time())
         # Check if current base page is full for each column and do the insert
-        for i in range(0, columns.len()):
+        for i in range(0, len(columns)):
             # Find or create an empty page for base
-            page = getEmptyPage(self.page_directory[i].base)
+            page = getEmptyPage(self.page_directory[i]['base'])
             # Perform the insert for that column
             recordLoc = page.write(columns[i])
             # Exit if the write did not work
             if not recordLoc:
                 return False
         #RecordLoc should be the same across all columns
-        num_base = (len(self.page_directory[0].base) - 1) * 512
+        num_base = (len(self.page_directory[0]['base']) - 1) * 512
         return self.set_meta( num_base + recordLoc)
         
 
@@ -87,11 +87,11 @@ class Table:
         rid = record.rid - 1
 
         # Add new entries into the timestamp page
-        timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        #timestampLoc = getEmptyPage(self.timestamp).write(time.time())
 
         for i in range(0, columns.len()):
             # Find or create an empty page for tail
-            page = getEmptyPage(self.page_directory[i].tail)
+            page = getEmptyPage(self.page_directory[i]['tail'])
             # Perform the insert for that column
             # check if colunms[i] is none
             # if None insert the record.column[i] into tail instead
@@ -115,7 +115,7 @@ class Table:
         # Add new entries into the schema page
         schema = getEmptyPage(self.schema)
         # Write RID for new inserted record and initianize schema for record
-        return rid.half_write(location, location % 512, True, True) and schema.write(0)
+        return rid.half_write(location, (location - 1) % 512, True, True) and schema.write(0)
 
     def meta_update( self, rid, tail_rid):
         rid = rid - 1
@@ -152,11 +152,11 @@ class Table:
                 #if modified grab from tail
                 ind = self.RID[math.floor(rid / 512)].half_read( rid % 512, False) - 1
                 tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
-                val = self.page_directory[i].tail[math.floor(tail_rid / 512)].read(tail_rid % 512)
+                val = self.page_directory[i]['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
                 col.append(val)
             else:
                 #if not modified grab from base
-                val = self.page_directory[i].base[math.floor(rid / 512)].read(rid % 512)
+                val = self.page_directory[i]['base'][math.floor(rid / 512)].read(rid % 512)
                 col.append(val)
 
         return Record(rid + 1, key, col)
@@ -173,13 +173,13 @@ class Table:
                 #checks if schema has been modified
                 if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
                     #It has not been modified so check location in base page
-                    if pages.base[math.floor(rid / 512)].read(rid % 512) == key:
+                    if pages['base'][math.floor(rid / 512)].read(rid % 512) == key:
                         return rid + 1
                 else:
                     # It has been modified so search for its location in the base page
                     ind = rid_page.half_read(j, False) - 1
                     tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
-                    if pages.tail[math.floor(tail_rid / 512)].read(tail_rid % 512) == key:
+                    if pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512) == key:
                         return rid + 1
 
         return False

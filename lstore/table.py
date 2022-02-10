@@ -251,6 +251,39 @@ class Table:
         else:
             return rids
 
+    def locate_range(self, start, end, index):
+        found = []
+        # get the pages we are working on
+        pages = self.page_directory[index]
+        # Loop through every RID page
+        for i in range(0, len(self.RID)):
+            # Grab the current RID page we are working on
+            rid_page = self.RID[i]
+            #loop through every entry in the current RID page
+            for j in range(0, rid_page.num_records):
+                # Grab the current RID and Check if it is deleted
+                rid = rid_page.half_read(j, True) - 1
+                if rid == 0xFFFFFFFF - 1:
+                    continue
+
+                # Check if the RID has been modefied
+                if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
+                    # It has not been modified so check location in base page
+                    value = pages['base'][math.floor(rid / 512)].read(rid % 512)
+                    # Check if it is in range and append it to the list to return
+                    if value >= start and value <= end:
+                        found.append(value)
+                else:
+                    # It has been modified so search for its location in the indirection page
+                    ind = rid_page.half_read(j, False) - 1
+                    # Get the rid of the tail from the indirection pages
+                    tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
+                    value = pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
+                    # check if it is in range and append it to the list to return
+                    if value >= start and value <= end:
+                        found.append(value)
+        return found
+
 # Internal helper function for getting or creating an empty page
 def getEmptyPage(pages):
     # Check if the last page is empty

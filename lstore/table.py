@@ -53,7 +53,7 @@ class Table:
         # Find the records
         records = self.locate_record(index_value, index_column, query_columns)
         # Validate that records were found
-        if not records or not records[0]:
+        if not records:
             return False
         else:
             return records
@@ -61,7 +61,7 @@ class Table:
     # Adds a new slot to each column, adding the slot to the base page in the page_directory for the column
     # If all pages in the page_directory for a column are full, create a new page and add it to that
     # Tie together the reference to each page so the full record can be retrieved
-    def write(self, *columns):
+    def write(self, columns):
         # Add new entries into the timestamp page
         # timestampLoc = getEmptyPage(self.timestamp).write(time.time())
         # Make sure primary key is unique
@@ -84,9 +84,9 @@ class Table:
         ret  = self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
         return isinstance(ret, int)
 
-    def update(self, *columns):
+    def update(self, primary_key, columns):
         # Find the record to be updated by the primary key
-        record = self.locate_record(columns[self.key])
+        record = self.locate_record(primary_key)
         # Error if no record is found
         if not record:
             return False
@@ -200,9 +200,10 @@ class Table:
                     col.append(val)
             # Save the record with populated columns to the list
             records.append(Record(rid + 1, key, col))
+            #records.append(col)
         
         # Check if the search was performed on the primary key
-        if not columnIndex:
+        if columnIndex == None:
             # Return only one record for the primary key
             return records[0]
         else:

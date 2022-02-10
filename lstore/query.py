@@ -33,7 +33,7 @@ class Query:
     def insert(self, *columns):
         # Format the data for insertion by table
         data = columns
-        # Call to the table to handle insertion into it's pages
+        # Call to the table to handle insertion into its pages
         write = self.table.write(data)
         # Check that write returned successfully
         if not write:

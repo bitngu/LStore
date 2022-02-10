@@ -81,7 +81,8 @@ class Table:
         return self.set_meta( num_base + recordLoc)
         
     def delete(self, rid):
-        return self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
+        ret  = self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
+        return isinstance(ret, int)
 
     def update(self, *columns):
         # Find the record to be updated by the primary key

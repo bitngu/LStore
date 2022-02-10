@@ -48,19 +48,15 @@ class Table:
         self.index = Index(self)
         pass
 
+    # Finds all records matching 
     def read(self, index_value, index_column, query_columns):
-        # *** This returns all values where the index_value matches the value in index_column.
-        # *** locate_record only returns one record, so we either have to modify it, or
-        # *** create a new helper function.
-        # Find the record in the index
-
-        # Only check the pages that are specified in the query_columns
-        for i in range(0, query_columns.len()):
-            # Check if we want that column to be returned
-            if query_columns[i] == 1:
-                # Find the data
-                print('just here to stop errors')
-        pass
+        # Find the record
+        records = self.locate_record(index_value, index_column, query_columns)
+        # Check if the records were found
+        if not records or not records[0]:
+            return False
+        else:
+            return records
 
     # Adds a new slot to each column, adding the slot to the base page in the page_directory for the column
     # If all pages in the page_directory for a column are full, create a new page and add it to that
@@ -140,7 +136,7 @@ class Table:
         tail_loc = ind_page.half_write(tail_rid, ind_page.num_records, True, True)
         # Calculate the location of the new tail
         tail_loc = ((len(ind_page) - 1) * 512) + tail_loc
-        # *** I think this should maybe be split out into transactions, should only override data on transaction commit ***
+        # *** This will be moved out for transactions in milestone 3 ***
         # Grab the previous ind location from the rid column
         prev_ind = self.RID[math.floor(rid / 512)].half_read(rid % 512, False)
         # if there was something previously saved there save the previous location to the 
@@ -153,64 +149,97 @@ class Table:
         # Return True on success
         return True
     
-    # *** Only returns one record by primary key *** 
-    # Gets a full record based on primary key
-    def locate_record(self, key):
-        # get the rid of the key given
-        rid = self.locate_rid(key)
-        # Error if no rid was found
-        if not rid:
-            return False
-        # Calculate the correct rid
-        rid = rid - 1
-        # Columns associated with the record here
-        col = []
-        # check the to see if the record has been modified
-        is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) > 0
-        # Get data from base or tail of each column
-        for i in range(0, self.num_columns):
-            # If modified grab from tail
-            if is_mod:
-                # Get the indirection RID
-                ind = self.RID[math.floor(rid / 512)].half_read( rid % 512, False) - 1
-                # Find the RID of the tail
-                tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
-                # Read the value from the tail
-                val = self.page_directory[i]['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
-                # Add the value to the record columns to be returned
-                col.append(val)
-            else: # If not modified grab from base
-                # Get the value from the base record
-                val = self.page_directory[i]['base'][math.floor(rid / 512)].read(rid % 512)
-                # Add the value to the record columns to be returned
-                col.append(val)
-        # Return the record with populated columns
-        return Record(rid + 1, key, col)
+    # Gets a full record based on primary key or multiple records based on specific column
+    def locate_record(self, key, columnIndex = None, selectColumns = None):
+        # Find the rids based on the columnIndex
+        rids = self.locate_rid(key, columnIndex)
+        # Adjust to account for only one primary key return
+        if not columnIndex:
+            rids = [rids]
+        # List of records to return
+        records = []
+        # Find the record for each rid
+        for rid in rids:
+            # Error if no rid was found
+            if not rid:
+                return False
+            # Calculate the correct rid
+            rid = rid - 1
+            # Columns associated with the record here
+            col = []
+            # check the to see if the record has been modified
+            is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) > 0
+            # Get data from base or tail of each column
+            for i in range(0, self.num_columns):
+                # Skip the column if it is not selected to return
+                if selectColumns != None and selectColumns[i] == None:
+                    # Add none if the column is not to be returned
+                    col.append(None)
+                    break
+                # If modified grab from tail
+                if is_mod:
+                    # Get the indirection RID
+                    ind = self.RID[math.floor(rid / 512)].half_read( rid % 512, False) - 1
+                    # Find the RID of the tail
+                    tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
+                    # Read the value from the tail
+                    val = self.page_directory[i]['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
+                    # Add the value to the record columns to be returned
+                    col.append(val)
+                else: # If not modified grab from base
+                    # Get the value from the base record
+                    val = self.page_directory[i]['base'][math.floor(rid / 512)].read(rid % 512)
+                    # Add the value to the record columns to be returned
+                    col.append(val)
+            # Save the record with populated columns to the list
+            records.append(Record(rid + 1, key, col))
+        
+        # Check if the search was performed on the primary key
+        if not columnIndex:
+            # Return only one record for the primary key
+            return records[0]
+        else:
+            # Return all records for all other columns
+            return records
 
     # Finds a record's rid based on the primary key
-    def locate_rid(self, key):
-        #set of pages we are looking through
-        pages = self.page_directory[self.key]
-        #loops through every rid page
+    def locate_rid(self, key, index = None):
+        # Default index to primary key
+        if not index:
+            index = self.key
+        # Set of pages we are looking through
+        pages = self.page_directory[index]
+        # Array of rids
+        rids = []
+        # Loops through every rid page
         for i in range(0, len(self.RID)):
+            # Exit if primary key has already been found
+            if index == self.key and rids[0]:
+                break
             rid_page = self.RID[i]
-            #loops through every entry in rid page
+            # Loops through every entry in rid page
             for j in range(0, rid_page.num_records):
+                # Exit if primary key has already been found
+                if index == self.key and rids[0]:
+                    break
                 rid = rid_page.half_read(j, True) - 1
                 #checks if schema has been modified
                 if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
                     # It has not been modified so check location in base page
                     if pages['base'][math.floor(rid / 512)].read(rid % 512) == key:
-                        return rid + 1
+                        rids.append(rid + 1)
                 else:
                     # It has been modified so search for its location in the indirection page
                     ind = rid_page.half_read(j, False) - 1
                     # Get the rid of the tail from the indirection pages
                     tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
                     if pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512) == key:
-                        return rid + 1
-        # Exit with error if no rid was found
-        return False
+                        rids.append(rid + 1)
+        # Exit with error if no rids were found
+        if not rids or not rids[0]:
+            return False
+        else:
+            return rids
 
 # Internal helper function for getting or creating an empty page
 def getEmptyPage(pages):

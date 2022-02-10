@@ -27,14 +27,17 @@ class Transaction:
             result = query(*args)
             # If the query has failed the transaction should abort
             if result == False:
-                return self.abort()
-        return self.commit()
+                return self.abort(result)
+        return self.commit(result)
 
-    def abort(self):
-        #TODO: do roll-back and any other necessary operations
+    # Rolls back if a query failed
+    def abort(self, tail_rids):
+        # If an update fails, go through each page and delete the entry corresponding to the returned rid
+
         return False
 
-    def commit(self):
-        # TODO: commit to database
+    def commit(self, tail_rids):
+        # Update the indirection table if a query succeeded
+        
         return True
 

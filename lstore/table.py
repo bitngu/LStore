@@ -68,6 +68,7 @@ class Table:
         if self.locate_record(columns[self.key]):
             return False
         # Check if current base page is full for each column and do the insert
+        recordLoc = None
         for i in range(0, len(columns)):
             # Find or create an empty page for base
             page = getEmptyPage(self.page_directory[i]['base'])
@@ -78,9 +79,10 @@ class Table:
                 return False
         # RecordLoc should be the same across all columns
         num_base = (len(self.page_directory[0]['base']) - 1) * 512
-        return self.set_meta( num_base + recordLoc)
+        return self.set_meta(num_base + recordLoc)
         
     def delete(self, rid):
+        # Set the rid in the rid table to be 0xFFFFFFFF
         ret  = self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
         return isinstance(ret, int)
 
@@ -116,9 +118,6 @@ class Table:
         # *** This maybe should be used in transactions to commit the changes ***
         # Update the record's metadata
         return self.meta_update(record.rid, tail_rid)
-
-    def delete(self, primary_key):
-        pass
 
     def __merge(self):
         print("merge is happening")
@@ -233,55 +232,40 @@ class Table:
                 # Checks if RID has been deleeted  and skips this rid
                 if rid == 0xFFFFFFFF - 1:
                     continue
-                #checks if schema has been modified
-                if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
-                    # It has not been modified so check location in base page
-                    if pages['base'][math.floor(rid / 512)].read(rid % 512) == key:
-                        rids.append(rid + 1)
-                else:
-                    # It has been modified so search for its location in the indirection page
-                    ind = rid_page.half_read(j, False) - 1
-                    # Get the rid of the tail from the indirection pages
-                    tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
-                    if pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512) == key:
-                        rids.append(rid + 1)
+                # return the rid
+                # *** I don't think we care for rid if the record has been modified ***
+                rids.append(rid + 1)
         # Exit with error if no rids were found
         if not rids or not rids[0]:
             return False
         else:
             return rids
 
+    # *** start and end specify a range of records by primary key ***
+    # Find all values from column[index] with primary key from start to end
     def locate_range(self, start, end, index):
         found = []
         # get the pages we are working on
         pages = self.page_directory[index]
-        # Loop through every RID page
-        for i in range(0, len(self.RID)):
-            # Grab the current RID page we are working on
-            rid_page = self.RID[i]
-            #loop through every entry in the current RID page
-            for j in range(0, rid_page.num_records):
-                # Grab the current RID and Check if it is deleted
-                rid = rid_page.half_read(j, True) - 1
-                if rid == 0xFFFFFFFF - 1:
-                    continue
-
-                # Check if the RID has been modefied
-                if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
-                    # It has not been modified so check location in base page
-                    value = pages['base'][math.floor(rid / 512)].read(rid % 512)
-                    # Check if it is in range and append it to the list to return
-                    if value >= start and value <= end:
-                        found.append(value)
-                else:
-                    # It has been modified so search for its location in the indirection page
-                    ind = rid_page.half_read(j, False) - 1
-                    # Get the rid of the tail from the indirection pages
-                    tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
-                    value = pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
-                    # check if it is in range and append it to the list to return
-                    if value >= start and value <= end:
-                        found.append(value)
+        # Loop through every record between start and end primary key
+        for i in range(start, end):
+            # Get the rid from the primary key
+            rid = self.locate_rid(i)
+            # Check if the RID has been modified
+            if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
+                # It has not been modified so check location in base page
+                value = pages['base'][math.floor(rid / 512)].read(rid % 512)
+                # Append it to the list to return
+                found.append(value)
+            else:
+                # It has been modified so search for its location in the indirection page
+                ind = self.RID[math.floor(rid / 512)].half_read( rid % 512, False) - 1
+                # Get the rid of the tail from the indirection pages
+                tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
+                value = pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
+                # Append it to the list to return
+                found.append(value)
+        # Return the found values
         return found
 
 # Internal helper function for getting or creating an empty page

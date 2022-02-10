@@ -22,7 +22,8 @@ class Query:
     """
 
     def delete(self, primary_key):
-        pass
+        rid = self.table.locate_rid(primary_key)
+        return self.table.delete(rid)
     """
     # Insert a record with specified columns
     # Return True upon succesful insertion

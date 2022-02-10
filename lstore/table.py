@@ -80,6 +80,10 @@ class Table:
         num_base = (len(self.page_directory[0]['base']) - 1) * 512
         return self.set_meta( num_base + recordLoc)
         
+    def delete(self, rid):
+        ret  = self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
+        return isinstance(ret, int)
+
     def update(self, *columns):
         # Find the record to be updated by the primary key
         record = self.locate_record(columns[self.key])
@@ -93,7 +97,7 @@ class Table:
         # Location of updated tail
         tail_rid = None
         # Update the columns and pass to meta_update on completion
-        for i in range(0, columns.len()):
+        for i in range(0, len(columns)):
             # Find or create an empty page for tail
             page = getEmptyPage(self.page_directory[i]['tail'])
             # If column value is None, insert the record.column[i] into tail instead
@@ -138,7 +142,7 @@ class Table:
         # write into indirection the location of tail page for rid's record
         tail_loc = ind_page.half_write(tail_rid, ind_page.num_records, True, True)
         # Calculate the location of the new tail
-        tail_loc = ((len(ind_page) - 1) * 512) + tail_loc
+        tail_loc = ((len(self.indirection) - 1) * 512) + tail_loc
         # *** This will be moved out for transactions in milestone 3 ***
         # Grab the previous ind location from the rid column
         prev_ind = self.RID[math.floor(rid / 512)].half_read(rid % 512, False)
@@ -157,6 +161,9 @@ class Table:
         # Find the rids based on the columnIndex
         rids = self.locate_rid(key, columnIndex)
         # List of records to return
+        # Rid was not found returns false
+        if not rids:
+            return False
         records = []
         # Find the record for each rid
         for rid in rids:
@@ -214,15 +221,18 @@ class Table:
         # Loops through every rid page
         for i in range(0, len(self.RID)):
             # Exit if primary key has already been found
-            if index == self.key and rids[0]:
+            if index == self.key and not len(rids) == 0:
                 break
             rid_page = self.RID[i]
             # Loops through every entry in rid page
             for j in range(0, rid_page.num_records):
                 # Exit if primary key has already been found
-                if index == self.key and rids[0]:
+                if index == self.key and not len(rids) == 0:
                     break
                 rid = rid_page.half_read(j, True) - 1
+                # Checks if RID has been deleeted  and skips this rid
+                if rid == 0xFFFFFFFF - 1:
+                    continue
                 #checks if schema has been modified
                 if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
                     # It has not been modified so check location in base page

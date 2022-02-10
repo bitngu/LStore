@@ -48,11 +48,11 @@ class Table:
         self.index = Index(self)
         pass
 
-    # Finds all records matching 
+    # Finds all records matching index_value in the column index_column. Only returns values from query_column
     def read(self, index_value, index_column, query_columns):
-        # Find the record
+        # Find the records
         records = self.locate_record(index_value, index_column, query_columns)
-        # Check if the records were found
+        # Validate that records were found
         if not records or not records[0]:
             return False
         else:
@@ -63,7 +63,10 @@ class Table:
     # Tie together the reference to each page so the full record can be retrieved
     def write(self, *columns):
         # Add new entries into the timestamp page
-        #timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        # timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        # Make sure primary key is unique
+        if self.locate_record(columns[self.key]):
+            return False
         # Check if current base page is full for each column and do the insert
         for i in range(0, len(columns)):
             # Find or create an empty page for base
@@ -153,9 +156,6 @@ class Table:
     def locate_record(self, key, columnIndex = None, selectColumns = None):
         # Find the rids based on the columnIndex
         rids = self.locate_rid(key, columnIndex)
-        # Adjust to account for only one primary key return
-        if not columnIndex:
-            rids = [rids]
         # List of records to return
         records = []
         # Find the record for each rid
@@ -172,10 +172,10 @@ class Table:
             # Get data from base or tail of each column
             for i in range(0, self.num_columns):
                 # Skip the column if it is not selected to return
-                if selectColumns != None and selectColumns[i] == None:
+                if selectColumns != None and selectColumns[i] == 0:
                     # Add none if the column is not to be returned
                     col.append(None)
-                    break
+                    continue
                 # If modified grab from tail
                 if is_mod:
                     # Get the indirection RID

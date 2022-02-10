@@ -31,7 +31,6 @@ class Query:
     """
 
     def insert(self, *columns):
-        # schema_encoding = '0' * self.table.num_columns
         # Format the data for insertion by table
         data = columns
         # Call to the table to handle insertion into its pages
@@ -55,7 +54,7 @@ class Query:
     def select(self, index_value, index_column, query_columns):
         # Performs a table read to get the data
         return self.table.read(index_value, index_column, query_columns)
-        
+
     """
     # Update a record with specified key and columns
     # Returns True if update is succesful
@@ -63,8 +62,9 @@ class Query:
     """
 
     def update(self, primary_key, *columns):
-       # Perform a table update
-       return self.table.update(primary_key, columns)
+        # Add the updated information to the table with a table write
+        # Perform a table update
+        return self.table.update(primary_key, columns)
 
     """
     :param start_range: int         # Start of the key range to aggregate 
@@ -76,8 +76,10 @@ class Query:
     """
 
     def sum(self, start_range, end_range, aggregate_column_index):
-        # Do a sum on the table
-        return self.table.sum(start_range, end_range, aggregate_column_index)
+        nums  = self.table.locate_range(start_range, end_range, aggregate_column_index)
+        if len(nums) == 0:
+            return False
+        return sum(nums)
 
     """
     increments one column of the record

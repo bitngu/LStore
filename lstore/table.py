@@ -44,26 +44,29 @@ class Table:
         self.schema = [Page()]
         # Create Timestamp page
         self.timestamp = [Page()]
+        # Assign index reference
         self.index = Index(self)
         pass
 
+    # Finds all records matching index_value in the column index_column. Only returns values from query_column
     def read(self, index_value, index_column, query_columns):
-        # Find the record in the index
-
-        # Only check the pages that are specified in the query_columns
-        for i in query_columns.len():
-            # Check if we want that column to be returned
-            if query_columns[i] == 1:
-                # Find the data
-                print('just here to stop errors')
-        pass
+        # Find the records
+        records = self.locate_record(index_value, index_column, query_columns)
+        # Validate that records were found
+        if not records or not records[0]:
+            return False
+        else:
+            return records
 
     # Adds a new slot to each column, adding the slot to the base page in the page_directory for the column
     # If all pages in the page_directory for a column are full, create a new page and add it to that
     # Tie together the reference to each page so the full record can be retrieved
     def write(self, *columns):
         # Add new entries into the timestamp page
-        #timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        # timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        # Make sure primary key is unique
+        if self.locate_record(columns[self.key]):
+            return False
         # Check if current base page is full for each column and do the insert
         for i in range(0, len(columns)):
             # Find or create an empty page for base
@@ -73,34 +76,42 @@ class Table:
             # Exit if the write did not work
             if not recordLoc:
                 return False
-        #RecordLoc should be the same across all columns
+        # RecordLoc should be the same across all columns
         num_base = (len(self.page_directory[0]['base']) - 1) * 512
         return self.set_meta( num_base + recordLoc)
         
-
     def update(self, *columns):
-       # Check if current tail page is full for each column and do the insert
+        # Find the record to be updated by the primary key
         record = self.locate_record(columns[self.key])
-        if record:
+        # Error if no record is found
+        if not record:
             return False
-        
+        # Get the correct rid for the record
         rid = record.rid - 1
-
-        # Add new entries into the timestamp page
-        #timestampLoc = getEmptyPage(self.timestamp).write(time.time())
-
+        # Update the timestamp page
+        # timestampLoc = getEmptyPage(self.timestamp).write(time.time())
+        # Location of updated tail
+        tail_rid = None
+        # Update the columns and pass to meta_update on completion
         for i in range(0, columns.len()):
             # Find or create an empty page for tail
             page = getEmptyPage(self.page_directory[i]['tail'])
-            # Perform the insert for that column
-            # check if colunms[i] is none
-            # if None insert the record.column[i] into tail instead
-            # store the location of where the tail was writen into tail_rid
-
-        tail_rid = 0 # delete this line later
-        self.meta_update(record.rid, tail_rid)
-        pass
-
+            # If column value is None, insert the record.column[i] into tail instead
+            if not columns[i]:
+                updatedLoc = page.write(record.columns[i])
+            else: # Otherwise insert the new value
+                updatedLoc = page.write(columns[i])
+            # Save or check the location to be written to the tail
+            if not tail_rid:
+                # Initialize tail_rid
+                tail_rid = updatedLoc
+            else :
+                # Check to make sure that the tail_rid matches the returned location
+                if tail_rid != updatedLoc:
+                    return False
+        # *** This maybe should be used in transactions to commit the changes ***
+        # Update the record's metadata
+        return self.meta_update(record.rid, tail_rid)
 
     def delete(self, primary_key):
         pass
@@ -109,82 +120,128 @@ class Table:
         print("merge is happening")
         pass
 
+    # Add the metadata for a new record in the rid and schema pages
     def set_meta(self, location):
         # Add new entries into the RID page
         rid = getEmptyPage(self.RID)
         # Add new entries into the schema page
         schema = getEmptyPage(self.schema)
-        # Write RID for new inserted record and initianize schema for record
+        # Write RID for new inserted record and initialize schema for record
         return rid.half_write(location, (location - 1) % 512, True, True) and schema.write(0)
 
-    def meta_update( self, rid, tail_rid):
+    # Updates a record based on the rid and the rid of the tail+
+    def meta_update(self, rid, tail_rid):
+        # Get correct rid reference
         rid = rid - 1
-        
-        # get an indirection page
+        # Get an indirection page
         ind_page = getEmptyPage(self.indirection)
-        # write into indirection location of tail page for rid's record
+        # write into indirection the location of tail page for rid's record
         tail_loc = ind_page.half_write(tail_rid, ind_page.num_records, True, True)
+        # Calculate the location of the new tail
         tail_loc = ((len(ind_page) - 1) * 512) + tail_loc
-        # grab the previous ind location from the rid column 
+        # *** This will be moved out for transactions in milestone 3 ***
+        # Grab the previous ind location from the rid column
         prev_ind = self.RID[math.floor(rid / 512)].half_read(rid % 512, False)
         # if there was something previously saved there save the previous location to the 
         # second half of the most recent indirection column
         if prev_ind > 0:
             ind_page.half_write(prev_ind, (tail_loc - 1) % 512, False, False)
-        
-        #save the location of the indirection into the second half of the rid col
+        # Update the location of the indirection in the second half of the rid column
         self.RID[math.floor(rid / 512)].half_write( tail_loc, rid % 512, False, False)
         self.schema[math.floor(rid / 512)].half_write( 1, rid % 512, False, False)
-
-    def locate_record( self, key):
-        # get the rid of the key given
-        rid = self.locate_rid(key)
-        if not rid:
-            return False
+        # Return True on success
+        return True
+    
+    # Gets a full record based on primary key or multiple records based on specific column
+    def locate_record(self, key, columnIndex = None, selectColumns = None):
+        # Find the rids based on the columnIndex
+        rids = self.locate_rid(key, columnIndex)
+        # List of records to return
+        records = []
+        # Find the record for each rid
+        for rid in rids:
+            # Error if no rid was found
+            if not rid:
+                return False
+            # Calculate the correct rid
+            rid = rid - 1
+            # Columns associated with the record here
+            col = []
+            # check the to see if the record has been modified
+            is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) > 0
+            # Get data from base or tail of each column
+            for i in range(0, self.num_columns):
+                # Skip the column if it is not selected to return
+                if selectColumns != None and selectColumns[i] == 0:
+                    # Add none if the column is not to be returned
+                    col.append(None)
+                    continue
+                # If modified grab from tail
+                if is_mod:
+                    # Get the indirection RID
+                    ind = self.RID[math.floor(rid / 512)].half_read( rid % 512, False) - 1
+                    # Find the RID of the tail
+                    tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
+                    # Read the value from the tail
+                    val = self.page_directory[i]['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
+                    # Add the value to the record columns to be returned
+                    col.append(val)
+                else: # If not modified grab from base
+                    # Get the value from the base record
+                    val = self.page_directory[i]['base'][math.floor(rid / 512)].read(rid % 512)
+                    # Add the value to the record columns to be returned
+                    col.append(val)
+            # Save the record with populated columns to the list
+            records.append(Record(rid + 1, key, col))
         
-        rid = rid - 1
+        # Check if the search was performed on the primary key
+        if not columnIndex:
+            # Return only one record for the primary key
+            return records[0]
+        else:
+            # Return all records for all other columns
+            return records
 
-        col = []
-        # check the to see if the record has been modified
-        is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) > 0
-        for i in range(0, self.num_columns):
-            if is_mod:
-                #if modified grab from tail
-                ind = self.RID[math.floor(rid / 512)].half_read( rid % 512, False) - 1
-                tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
-                val = self.page_directory[i]['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
-                col.append(val)
-            else:
-                #if not modified grab from base
-                val = self.page_directory[i]['base'][math.floor(rid / 512)].read(rid % 512)
-                col.append(val)
-
-        return Record(rid + 1, key, col)
-
-    def locate_rid( self, key):
-        #set of pages we are looking through
-        pages = self.page_directory[self.key]
-        #loops through every rid page
+    # Finds a record's rid based on the primary key
+    def locate_rid(self, key, index = None):
+        # Default index to primary key
+        if not index:
+            index = self.key
+        # Set of pages we are looking through
+        pages = self.page_directory[index]
+        # Array of rids
+        rids = []
+        # Loops through every rid page
         for i in range(0, len(self.RID)):
+            # Exit if primary key has already been found
+            if index == self.key and rids[0]:
+                break
             rid_page = self.RID[i]
-            #loops through every entr in rid page
+            # Loops through every entry in rid page
             for j in range(0, rid_page.num_records):
+                # Exit if primary key has already been found
+                if index == self.key and rids[0]:
+                    break
                 rid = rid_page.half_read(j, True) - 1
                 #checks if schema has been modified
                 if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
-                    #It has not been modified so check location in base page
+                    # It has not been modified so check location in base page
                     if pages['base'][math.floor(rid / 512)].read(rid % 512) == key:
-                        return rid + 1
+                        rids.append(rid + 1)
                 else:
-                    # It has been modified so search for its location in the base page
+                    # It has been modified so search for its location in the indirection page
                     ind = rid_page.half_read(j, False) - 1
+                    # Get the rid of the tail from the indirection pages
                     tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
                     if pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512) == key:
-                        return rid + 1
+                        rids.append(rid + 1)
+        # Exit with error if no rids were found
+        if not rids or not rids[0]:
+            return False
+        else:
+            return rids
 
-        return False
-
-    # Internal helper function for getting or creating an empty page
+# Internal helper function for getting or creating an empty page
 def getEmptyPage(pages):
     # Check if the last page is empty
     if not pages[-1].has_capacity():

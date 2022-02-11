@@ -31,13 +31,14 @@ class Page:
     def half_write(self, value, location, is_upper, is_inc):
         upper = 0 if is_upper else 4
         try:
-            if self.has_capacity():
-                index = (location * 8) + upper
-                self.data[index:index + 4] = value.to_bytes( 4, 'big')
-                if is_inc:
-                    self.num_records += 1
-                return self.num_records    
-            return False 
+            if not self.has_capacity() and is_inc:
+                return False 
+                
+            index = (location * 8) + upper
+            self.data[index:index + 4] = value.to_bytes( 4, 'big')
+            if is_inc:
+                self.num_records += 1
+            return self.num_records
         except:
             return False
 

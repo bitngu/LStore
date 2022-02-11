@@ -53,7 +53,10 @@ class Query:
 
     def select(self, index_value, index_column, query_columns):
         # Performs a table read to get the data
-        return self.table.read(index_value, index_column, query_columns)
+        ret = self.table.read(index_value, index_column, query_columns)
+        if not ret:
+            return False
+        return ret
 
     """
     # Update a record with specified key and columns
@@ -64,7 +67,11 @@ class Query:
     def update(self, primary_key, *columns):
         # Add the updated information to the table with a table write
         # Perform a table update
-        return self.table.update(primary_key, columns)
+        ret = self.table.update(primary_key, columns)
+        if not ret:
+            print('here q 72')
+            return False
+        return True
 
     """
     :param start_range: int         # Start of the key range to aggregate 

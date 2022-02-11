@@ -53,7 +53,7 @@ class Table:
         # Find the records
         records = self.locate_record(index_value, index_column, query_columns)
         # Validate that records were found
-        if not records or not records[0]:
+        if not records:
             return False
         else:
             return records
@@ -61,7 +61,7 @@ class Table:
     # Adds a new slot to each column, adding the slot to the base page in the page_directory for the column
     # If all pages in the page_directory for a column are full, create a new page and add it to that
     # Tie together the reference to each page so the full record can be retrieved
-    def write(self, *columns):
+    def write(self, columns):
         # Add new entries into the timestamp page
         # timestampLoc = getEmptyPage(self.timestamp).write(time.time())
         # Make sure primary key is unique
@@ -84,9 +84,9 @@ class Table:
         ret  = self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
         return isinstance(ret, int)
 
-    def update(self, *columns):
+    def update(self, primary_key, columns):
         # Find the record to be updated by the primary key
-        record = self.locate_record(columns[self.key])
+        record = self.locate_record(primary_key)
         # Error if no record is found
         if not record:
             return False
@@ -139,8 +139,9 @@ class Table:
         rid = rid - 1
         # Get an indirection page
         ind_page = getEmptyPage(self.indirection)
+        tail_size = len(self.page_directory[0]['tail']) - 1
         # write into indirection the location of tail page for rid's record
-        tail_loc = ind_page.half_write(tail_rid, ind_page.num_records, True, True)
+        tail_loc = ind_page.half_write((tail_size * 512) + tail_rid, ind_page.num_records, True, True)
         # Calculate the location of the new tail
         tail_loc = ((len(self.indirection) - 1) * 512) + tail_loc
         # *** This will be moved out for transactions in milestone 3 ***
@@ -152,7 +153,7 @@ class Table:
             ind_page.half_write(prev_ind, (tail_loc - 1) % 512, False, False)
         # Update the location of the indirection in the second half of the rid column
         self.RID[math.floor(rid / 512)].half_write( tail_loc, rid % 512, False, False)
-        self.schema[math.floor(rid / 512)].half_write( 1, rid % 512, False, False)
+        ret = self.schema[math.floor(rid / 512)].half_write( 1, rid % 512, False, False)
         # Return True on success
         return True
     
@@ -200,9 +201,10 @@ class Table:
                     col.append(val)
             # Save the record with populated columns to the list
             records.append(Record(rid + 1, key, col))
+            #records.append(col)
         
         # Check if the search was performed on the primary key
-        if not columnIndex:
+        if columnIndex == None:
             # Return only one record for the primary key
             return records[0]
         else:
@@ -234,7 +236,8 @@ class Table:
                 if rid == 0xFFFFFFFF - 1:
                     continue
                 #checks if schema has been modified
-                if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
+                is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) == 0
+                if is_mod:
                     # It has not been modified so check location in base page
                     if pages['base'][math.floor(rid / 512)].read(rid % 512) == key:
                         rids.append(rid + 1)
@@ -255,6 +258,7 @@ class Table:
         found = []
         # get the pages we are working on
         pages = self.page_directory[index]
+        key_pages = self.page_directory[self.key]
         # Loop through every RID page
         for i in range(0, len(self.RID)):
             # Grab the current RID page we are working on
@@ -269,19 +273,21 @@ class Table:
                 # Check if the RID has been modefied
                 if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
                     # It has not been modified so check location in base page
-                    value = pages['base'][math.floor(rid / 512)].read(rid % 512)
+                    k_val = key_pages['base'][math.floor(rid / 512)].read(rid % 512)
                     # Check if it is in range and append it to the list to return
-                    if value >= start and value <= end:
-                        found.append(value)
+                    if k_val > start and k_val < end:
+                        val = pages['base'][math.floor(rid / 512)].read(rid % 512)
+                        found.append(val)
                 else:
                     # It has been modified so search for its location in the indirection page
                     ind = rid_page.half_read(j, False) - 1
                     # Get the rid of the tail from the indirection pages
                     tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
-                    value = pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
+                    k_val = key_pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
                     # check if it is in range and append it to the list to return
-                    if value >= start and value <= end:
-                        found.append(value)
+                    if k_val >= start and k_val <= end:
+                        val = pages['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
+                        found.append(val)
         return found
 
 # Internal helper function for getting or creating an empty page

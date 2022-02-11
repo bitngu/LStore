@@ -139,8 +139,9 @@ class Table:
         rid = rid - 1
         # Get an indirection page
         ind_page = getEmptyPage(self.indirection)
+        tail_size = len(self.page_directory[0]['tail']) - 1
         # write into indirection the location of tail page for rid's record
-        tail_loc = ind_page.half_write(tail_rid, ind_page.num_records, True, True)
+        tail_loc = ind_page.half_write((tail_size * 512) + tail_rid, ind_page.num_records, True, True)
         # Calculate the location of the new tail
         tail_loc = ((len(self.indirection) - 1) * 512) + tail_loc
         # *** This will be moved out for transactions in milestone 3 ***
@@ -152,7 +153,7 @@ class Table:
             ind_page.half_write(prev_ind, (tail_loc - 1) % 512, False, False)
         # Update the location of the indirection in the second half of the rid column
         self.RID[math.floor(rid / 512)].half_write( tail_loc, rid % 512, False, False)
-        self.schema[math.floor(rid / 512)].half_write( 1, rid % 512, False, False)
+        ret = self.schema[math.floor(rid / 512)].half_write( 1, rid % 512, False, False)
         # Return True on success
         return True
     
@@ -235,7 +236,8 @@ class Table:
                 if rid == 0xFFFFFFFF - 1:
                     continue
                 #checks if schema has been modified
-                if self.schema[math.floor(rid / 512)].read(rid % 512) == 0:
+                is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) == 0
+                if is_mod:
                     # It has not been modified so check location in base page
                     if pages['base'][math.floor(rid / 512)].read(rid % 512) == key:
                         rids.append(rid + 1)

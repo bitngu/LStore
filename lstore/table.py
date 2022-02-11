@@ -101,7 +101,7 @@ class Table:
             # Find or create an empty page for tail
             page = getEmptyPage(self.page_directory[i]['tail'])
             # If column value is None, insert the record.column[i] into tail instead
-            if not columns[i]:
+            if columns[i] == None:
                 updatedLoc = page.write(record.columns[i])
             else: # Otherwise insert the new value
                 updatedLoc = page.write(columns[i])
@@ -275,7 +275,7 @@ class Table:
                     # It has not been modified so check location in base page
                     k_val = key_pages['base'][math.floor(rid / 512)].read(rid % 512)
                     # Check if it is in range and append it to the list to return
-                    if k_val > start and k_val < end:
+                    if k_val >= start and k_val <= end:
                         val = pages['base'][math.floor(rid / 512)].read(rid % 512)
                         found.append(val)
                 else:

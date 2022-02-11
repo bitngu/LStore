@@ -69,7 +69,6 @@ class Query:
         # Perform a table update
         ret = self.table.update(primary_key, columns)
         if not ret:
-            print('here q 72')
             return False
         return True
 

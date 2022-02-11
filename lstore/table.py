@@ -80,9 +80,6 @@ class Table:
         num_base = (len(self.page_directory[0]['base']) - 1) * 512
         return self.set_meta( num_base + recordLoc)
         
-    def delete(self, rid):
-        ret  = self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
-        return isinstance(ret, int)
 
     def update(self, primary_key, columns):
         # Find the record to be updated by the primary key
@@ -117,8 +114,6 @@ class Table:
         # Update the record's metadata
         return self.meta_update(record.rid, tail_rid)
 
-    def delete(self, primary_key):
-        pass
 
     def __merge(self):
         print("merge is happening")

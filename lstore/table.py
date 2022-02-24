@@ -28,6 +28,8 @@ class Table:
         self.key = key
         self.num_columns = num_columns
         self.page_directory = []
+        self.updates = 0
+        self.updateLimit = 5120
         
         # Create pages and assign them to the self.pages list. Start with one for each column
         for i in range(0, num_columns):
@@ -113,6 +115,11 @@ class Table:
                 # Check to make sure that the tail_rid matches the returned location
                 if tail_rid != updatedLoc:
                     return False
+        # Increment updates counter
+        self.updates += 1
+        # Check updates
+        if self.updates >= self.updateLimit:
+            self.__merge()
         # *** This maybe should be used in transactions to commit the changes ***
         # Update the record's metadata
         return self.meta_update(record.rid, tail_rid)
@@ -122,6 +129,66 @@ class Table:
 
     def __merge(self):
         print("merge is happening")
+        # Create a new thread
+
+        # Update base page for each column
+        for i in self.page_directory:
+            # Get the base pages
+            bases = self.page_directory[i].base
+            # Read each base page
+            for j in bases:
+                # Create a new base page
+                newBase = Page()
+                # Check all records in the base page
+                for ridi in range(0, 512):
+                    # Get the correct rid to search for
+                    rid = j * 512 + ridi
+                    # Do a lookup for all the columns
+                    val = self.locate_column_by_rid(rid, j)
+                    # Append new columns to base page
+                    newBase.write(val)
+                # Update page_directory to reference new base page
+                self.page_directory[i].base[j] = newBase
+            # Clear tail page directory
+            self.page_directory[i].tail = [Page()]
+
+
+        # # Handle each column one at a time
+        # for i in self.page_directory:
+        #     # Get the base and tail pages
+        #     base = self.page_directory[i].base
+        #     tail = self.page_directory[i].tail
+            
+        #     # Iterate backwards over tail pages
+        #     for pageIndex in tail:
+        #         # Handle backwards iteration
+        #         index = len(tail) - pageIndex - 1
+        #         # Calculate RID offset
+        #         offset = index * 512
+        #         # Iterate over each record in the tail page
+        #         for t in tail[index]:
+        #             # Get raw array of tail data
+        #             tail[index] = tail.raw()
+        #             # Calculate the tail RID
+        #             tail_rid = tail.len() - 1 - t + offset
+        #             # Find the base RID
+        #             base_rid = self.findBaseRID(tail_rid, index)
+        #             # Check if the base RID has already been updated
+        #             if RIDs.count(base_rid) > 0:
+        #                 continue
+        #             else:
+        #                 RIDs.append(base_rid)
+        #             # Get the data from the tail record
+        #             data = int.from_bytes(tail[tail_rid], 'big')
+        #             # Update the base page
+        #             base.write(data, base_rid)
+        #         # Clear tail pages
+        #         self.page_directory[i].tail = [Page()]
+        #         # Merge the updated base pages
+        #         for b in base:
+        #             # Update page_directory to point to updated base page
+        #             self.page_directory[i].base[b] = base
+
         pass
 
     # Add the metadata for a new record in the rid and schema pages
@@ -210,6 +277,23 @@ class Table:
         else:
             # Return all records for all other columns
             return records
+    # Gets a full record based on rid
+    def locate_record_columns_by_rid(self, rid, i):
+        # Calculate the correct rid
+        rid = rid - 1
+        # check the to see if the record has been modified
+        is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) > 0
+        # If modified grab from tail
+        if is_mod:
+            # Get the indirection RID
+            ind = self.RID[math.floor(rid / 512)].half_read( rid % 512, False) - 1
+            # Find the RID of the tail
+            tail_rid = self.indirection[math.floor(ind / 512)].half_read(ind % 512, True) - 1
+            # Read the value from the tail
+            return self.page_directory[i]['tail'][math.floor(tail_rid / 512)].read(tail_rid % 512)
+        else: # If not modified grab from base
+            # Get the value from the base record
+           return self.page_directory[i]['base'][math.floor(rid / 512)].read(rid % 512)
 
     # Finds a record's rid based on the primary key
     def locate_rid(self, key, index = None):
@@ -232,7 +316,7 @@ class Table:
                 if index == self.key and not len(rids) == 0:
                     break
                 rid = rid_page.half_read(j, True) - 1
-                # Checks if RID has been deleeted  and skips this rid
+                # Checks if RID has been deleted  and skips this rid
                 if rid == 0xFFFFFFFF - 1:
                     continue
                 #checks if schema has been modified

@@ -1,6 +1,7 @@
 from lstore.index import Index
 from lstore.page import Page
-from time import time
+from datetime import datetime
+from threading import Thread, Timer
 import math
 
 INDIRECTION_COLUMN = 0
@@ -48,6 +49,8 @@ class Table:
         self.timestamp = [Page()]
         # Assign index reference
         self.index = Index(self)
+        # Set timer for running merge
+        self.timer = self.merge_timer()
         pass
 
     # Finds all records matching index_value in the column index_column. Only returns values from query_column
@@ -121,11 +124,7 @@ class Table:
         # Update the record's metadata
         return self.meta_update(record.rid, tail_rid)
 
-
     def __merge(self):
-        print("merge is happening")
-        # Create a new thread
-
         # Update base page for each column
         for i in self.page_directory:
             # Get the base pages
@@ -155,6 +154,39 @@ class Table:
             # Update page directory
             self.page_directory[i].base = newBases
         pass
+
+    def merge(self):
+        print("merge is happening")
+        # Create a new thread to run the merge
+        worker = Thread(target = self.__merge)
+        # Start the thread
+        worker.start()
+        # Joins the thread with the main thread to wait for completion
+        # worker.join()
+        
+    def merge_timer(self):
+        print("Starting timer")
+        # Seconds until next midnight
+        s = 0
+        # Get the current time object
+        now = datetime.now()
+        # Calculate hours until next midnight
+        hours = 0 + now.strftime("%H")
+        # Increment seconds based on hour
+        s += (23 - hours) * 60 * 60
+        # Calculate minutes until next midnight
+        minutes = 0 + now.strftime("%M")
+        # Increment seconds based on minutes
+        s += (59 - minutes) * 60
+        # Calculate seconds until next midnight
+        seconds = 1 + now.strftime("%S")
+        # Increment seconds
+        s += 59 - seconds
+        # Validate current time
+        if s <= 0:
+            self.merge()
+        # Create a new thread with the timer
+        Timer(s, self.merge_timer).start()
 
     # Add the metadata for a new record in the rid and schema pages
     def set_meta(self, location):

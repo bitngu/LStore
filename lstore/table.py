@@ -125,6 +125,8 @@ class Table:
         return self.meta_update(record.rid, tail_rid)
 
     def __merge(self):
+        # Create empty base update structure
+        updated_bases = []
         # Update base page for each column
         for i in self.page_directory:
             # Get the base pages
@@ -133,6 +135,9 @@ class Table:
             newBases = []
             # Read each base page
             for j in bases:
+                # Skip any base pages that could have had updates (are not full). Should only ever be the last base page
+                if not bases[j].has_capacity():
+                    break
                 # Create a new base page
                 newBase = Page()
                 tps = 0
@@ -151,16 +156,26 @@ class Table:
                 newBase.set_tps(tps)
                 # Update page_directory to reference new base page
                 newBases.append(newBase)
-            # Update page directory
-            self.page_directory[i].base = newBases
+            # Add new base pages to array to apply
+            updated_bases.append(newBases)
+        # Merge the thread with the main thread
+        self.mergeWorker.join()
+        # Null the mergeWorker
+        self.mergeWorker = None
+        # Update the page_directory without overridding any new base pages that were created
+        for i in self.page_directory:
+            # Iterate over each updated base page
+            for j in updated_bases[i]:
+                # Update page_directory reference to new base pages
+                self.page_directory[i].base[j] = updated_bases[i][j]
         pass
 
     def merge(self):
         print("merge is happening")
         # Create a new thread to run the merge
-        worker = Thread(target = self.__merge)
+        self.mergeWorker = Thread(target = self.__merge)
         # Start the thread
-        worker.start()
+        self.mergeWorker.start()
         # Joins the thread with the main thread to wait for completion
         # worker.join()
         

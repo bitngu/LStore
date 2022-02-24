@@ -5,6 +5,7 @@ class Page:
     def __init__(self, data = bytearray(4096)):
         self.num_records = 0
         self.data = data
+        self.tps = 0
 
     def has_capacity(self):
         return self.num_records < MAX_ENTRIES
@@ -57,5 +58,9 @@ class Page:
         except:
             return False
 
-    # def raw(self):
-    #     return self.data
+    def get_tps(self):
+        return self.tps
+        
+    def set_tps(self, tps):
+        self.tps = tps
+        pass

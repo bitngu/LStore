@@ -82,9 +82,6 @@ class Table:
         num_base = (len(self.page_directory[0]['base']) - 1) * 512
         return self.set_meta( num_base + recordLoc)
         
-    def delete(self, rid):
-        ret  = self.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
-        return isinstance(ret, int)
 
     def update(self, primary_key, columns):
         # Find the record to be updated by the primary key
@@ -103,7 +100,7 @@ class Table:
             # Find or create an empty page for tail
             page = getEmptyPage(self.page_directory[i]['tail'])
             # If column value is None, insert the record.column[i] into tail instead
-            if not columns[i]:
+            if columns[i] == None:
                 updatedLoc = page.write(record.columns[i])
             else: # Otherwise insert the new value
                 updatedLoc = page.write(columns[i])
@@ -124,8 +121,6 @@ class Table:
         # Update the record's metadata
         return self.meta_update(record.rid, tail_rid)
 
-    def delete(self, primary_key):
-        pass
 
     def __merge(self):
         print("merge is happening")
@@ -359,7 +354,7 @@ class Table:
                     # It has not been modified so check location in base page
                     k_val = key_pages['base'][math.floor(rid / 512)].read(rid % 512)
                     # Check if it is in range and append it to the list to return
-                    if k_val > start and k_val < end:
+                    if k_val >= start and k_val <= end:
                         val = pages['base'][math.floor(rid / 512)].read(rid % 512)
                         found.append(val)
                 else:

@@ -186,15 +186,15 @@ class Table:
         # Get the current time object
         now = datetime.now()
         # Calculate hours until next midnight
-        hours = 0 + now.strftime("%H")
+        hours = int(now.strftime("%H"))
         # Increment seconds based on hour
         s += (23 - hours) * 60 * 60
         # Calculate minutes until next midnight
-        minutes = 0 + now.strftime("%M")
+        minutes = int(now.strftime("%M"))
         # Increment seconds based on minutes
         s += (59 - minutes) * 60
         # Calculate seconds until next midnight
-        seconds = 1 + now.strftime("%S")
+        seconds = 1 + int(now.strftime("%S"))
         # Increment seconds
         s += 59 - seconds
         # Validate current time
@@ -351,7 +351,10 @@ class Table:
                     continue
                 #checks if schema has been modified
                 is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) == 0
-                 # Get the base page
+                # Get the base page
+                print(i)
+                if len(self.page_directory[i]['base']) < math.floor(rid / 512):
+                    return False
                 base = self.page_directory[i]['base'][math.floor(rid / 512)]
                 # Pull from tail if modified, base if not
                 if is_mod:

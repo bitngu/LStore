@@ -3,9 +3,9 @@ A data strucutre holding indices for various columns of a table. Key column shou
 """
 class Index:
 
-    def init(self, table):
+    def __init__(self, table):
         # One index for each table. All our empty initially.
-        self.indices = [] * len(table.page_directory)
+        self.indices = [] * table.page_directory.num_cols
         self.RID = table.RID
         self.indirection = table.indirection
         self.schema = table.schema

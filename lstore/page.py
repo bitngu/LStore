@@ -4,6 +4,7 @@ class Page:
 
     def __init__(self):
         self.num_records = 0
+        self.tps = 0
         self.data = bytearray(4096)
         self.isDirty = False
         self.path = ""
@@ -61,3 +62,9 @@ class Page:
         except:
             return False
 
+    def get_tps(self):
+        return self.tps
+        
+    def set_tps(self, tps):
+        self.tps = tps
+        pass

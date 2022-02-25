@@ -121,11 +121,6 @@ class Table:
                 # Check to make sure that the tail_rid matches the returned location
                 if tail_rid != updatedLoc:
                     return False
-        # Increment updates counter
-        self.updates += 1
-        # Check updates
-        if self.updates >= self.updateLimit:
-            self.__merge()
         # *** This maybe should be used in transactions to commit the changes ***
         # Update the record's metadata
         return self.meta_update(record.rid, tail_rid)

@@ -26,7 +26,8 @@ class Query:
         if not rid:
             return False
         rid = rid[0]
-        ret  = self.table.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
+        # Needs to be updated to new page logic, returns meta object
+        ret  = self.table.RID.grab_page(math.floor((rid - 1) / 512)).half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
         return True if ret else False
     """
     # Insert a record with specified columns

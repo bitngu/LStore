@@ -58,6 +58,7 @@ class Query:
     def select(self, index_value, index_column, query_columns):
         # Performs a table read to get the data
         ret = self.table.read(index_value, index_column, query_columns)
+        print(ret)
         if not ret:
             return False
         return ret

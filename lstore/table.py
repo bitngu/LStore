@@ -1,7 +1,11 @@
 from lstore.index import Index
 from lstore.page import Page
+from datetime import datetime
+from threading import Thread, Timer
+from lstore.page_dir import Directory, Meta
 from time import time
 import math
+
 
 INDIRECTION_COLUMN = 0
 RID_COLUMN = 1
@@ -77,9 +81,7 @@ class Table:
             # Perform the insert for that column
             recordLoc = page.write(columns[i])
             # Exit if the write did not work
-            print(page.data)
-            if not recordLoc:
-                print('Hereeee')
+            if recordLoc == None:
                 return False
         # RecordLoc should be the same across all columns
         num_base = (len(self.page_directory.dir[0]['base']) - 1) * 512
@@ -162,6 +164,7 @@ class Table:
     def locate_record(self, key, columnIndex = None, selectColumns = None):
         # Find the rids based on the columnIndex
         rids = self.locate_rid(key, columnIndex)
+        print(rids)
         # List of records to return
         # Rid was not found returns false
         if not rids:
@@ -232,6 +235,8 @@ class Table:
             if index == self.key and not len(rids) == 0:
                 break
             rid_page = self.RID.grab_page(i)
+            print("Number of records:")
+            print(rid_page.num_records)
             # Loops through every entry in rid page
             for j in range(0, rid_page.num_records):
                 # Exit if primary key has already been found
@@ -259,6 +264,7 @@ class Table:
                     if page.read(tail_rid % 512) == key:
                         rids.append(rid + 1)
         # Exit with error if no rids were found
+        print(rids)
         if not rids or not rids[0]:
             return False
         else:

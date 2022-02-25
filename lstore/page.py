@@ -52,13 +52,27 @@ class Page:
         if not self.isDirty:
             self.isDirty = True
         try:
+            print("Has Capacity")
+            print(self.has_capacity())
             if self.has_capacity():
+                print("records")
+                print(self.num_records)
                 if location == None:
                     index = self.num_records * 8
                 else:
                     index = location * 8
-                self.data[index:index + 8] = value.to_bytes( 8, 'big')
+                print("Boo!")
+                val = value.to_bytes(8, 'big')
+                print(val)
+                for i in range(index, index + 9):
+                    print(i)
+                    print(self.data[i])
+                    self.data[i] = val
+                #self.data[index:index + 8] = value.to_bytes(8, 'big')
+                print("Boo back!")
                 self.num_records += 1
+                print("Updated records:")
+                print(self.num_records)
                 return self.num_records
             return False 
         except:

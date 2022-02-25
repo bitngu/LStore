@@ -128,15 +128,15 @@ class Table:
         # Create empty base update structure
         updated_bases = []
         # Update base page for each column
-        for i in self.page_directory:
+        for i in range(0, len(self.page_directory)):
             # Get the base pages
-            bases = self.page_directory[i].base
+            bases = self.page_directory[i]['base']
             # Save the list of new base pages
             newBases = []
             # Read each base page
-            for j in bases:
+            for j in range(0, len(bases)):
                 # Skip any base pages that could have had updates (are not full). Should only ever be the last base page
-                if not bases[j].has_capacity():
+                if bases[j].has_capacity():
                     break
                 # Create a new base page
                 newBase = Page()
@@ -148,26 +148,23 @@ class Table:
                     # Do a lookup for all the columns
                     dict = self.locate_column_by_rid(rid, j)
                     # Append new columns to base page
-                    newBase.write(dict.val)
+                    newBase.write(dict['val'])
                     # Update tps if needed
-                    if tps < dict.tail_rid:
-                        tps = dict.tail_rid
+                    if tps < dict['tail_rid']:
+                        tps = dict['tail_rid']
                 # Set the tps for the new base page
                 newBase.set_tps(tps)
                 # Update page_directory to reference new base page
                 newBases.append(newBase)
             # Add new base pages to array to apply
             updated_bases.append(newBases)
-        # Merge the thread with the main thread
-        self.mergeWorker.join()
-        # Null the mergeWorker
-        self.mergeWorker = None
         # Update the page_directory without overridding any new base pages that were created
-        for i in self.page_directory:
+        # *** Update for new page directory functionality ***
+        for i in range(0, len(self.page_directory)):
             # Iterate over each updated base page
-            for j in updated_bases[i]:
+            for base in updated_bases[i]:
                 # Update page_directory reference to new base pages
-                self.page_directory[i].base[j] = updated_bases[i][j]
+                self.page_directory[i]['base'][j] = base
         pass
 
     def merge(self):
@@ -181,6 +178,8 @@ class Table:
         
     def merge_timer(self):
         print("Starting timer")
+        # Immediately do a merge for testing
+        #self.merge()
         # Seconds until next midnight
         s = 0
         # Get the current time object
@@ -352,10 +351,7 @@ class Table:
                 #checks if schema has been modified
                 is_mod = self.schema[math.floor(rid / 512)].read(rid % 512) == 0
                 # Get the base page
-                print(i)
-                if len(self.page_directory[i]['base']) < math.floor(rid / 512):
-                    return False
-                base = self.page_directory[i]['base'][math.floor(rid / 512)]
+                base = pages['base'][math.floor(rid / 512)]
                 # Pull from tail if modified, base if not
                 if is_mod:
                     # It has not been modified so check location in base page

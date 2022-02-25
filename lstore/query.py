@@ -22,7 +22,10 @@ class Query:
     """
 
     def delete(self, primary_key):
-        rid = self.table.locate_rid(primary_key)[0]
+        rid = self.table.locate_rid(primary_key)
+        if not rid:
+            return False
+        rid = rid[0]
         ret  = self.table.RID[math.floor((rid - 1) / 512)].half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
         return True if ret else False
     """

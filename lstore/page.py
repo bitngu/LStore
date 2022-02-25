@@ -5,6 +5,10 @@ class Page:
     def __init__(self):
         self.num_records = 0
         self.data = bytearray(4096)
+        self.isDirty = False
+        self.path = ""
+        self.pos = 0
+        self.age = 0
 
     def has_capacity(self):
         return self.num_records < MAX_ENTRIES

@@ -2,10 +2,14 @@ MAX_ENTRIES = 512
 MAX_INPUT = 0xFFFFFFFFFFFFFFFF
 class Page:
 
-    def __init__(self, data = bytearray(4096)):
+    def __init__(self):
         self.num_records = 0
-        self.data = data
         self.tps = 0
+        self.data = bytearray(4096)
+        self.isDirty = False
+        self.path = ""
+        self.pos = 0
+        self.age = 0
 
     def has_capacity(self):
         return self.num_records < MAX_ENTRIES

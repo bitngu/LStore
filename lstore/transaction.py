@@ -8,6 +8,8 @@ class Transaction:
     """
     def __init__(self):
         self.queries = []
+        self.table = None
+        self.completed = 0
         pass
 
     """
@@ -20,6 +22,7 @@ class Transaction:
     def add_query(self, table, query, *args):
         self.queries.append((query, args))
         # use grades_table for aborting
+        self.table = table
 
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort
     def run(self):
@@ -28,15 +31,19 @@ class Transaction:
             # If the query has failed the transaction should abort
             if result == False:
                 return self.abort(result)
-        return self.commit(result)
+            else:
+                # Keep track of how many queries have ran successfully
+                self.completed += 1
+                return self.commit(result)
 
     # Rolls back if a query failed
-    def abort(self, tail_rids):
-        # If an update fails, go through each page and delete the entry corresponding to the returned rid
-
+    def abort(self):
+        # Iterate over each completed query and undo it
+        for i in range(0, self.completed):
+            self.queries[i].abort()
         return False
 
-    def commit(self, tail_rids):
+    def commit(self):
         # Update the indirection table if a query succeeded
         
         return True

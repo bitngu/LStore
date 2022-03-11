@@ -209,10 +209,23 @@ class Table:
         # Create a new thread with the timer
         Timer(s, self.merge_timer).start()
 
-    def abort(self, rid):
-        # Iterate over each tail page
-        for i in range(0, self.table.num_columns):
-            for dir in self.table.page_directory[i]
+    def abort(self, rid, type):
+        # Perform a different operation depending on type
+        print(type)
+        match type:
+            case 'delete':
+                print('delete')
+                return True
+            case 'update':
+                print('update')
+                return True
+            case 'insert':
+                print('insert')
+                return True
+        # Do nothing for sum and select
+        print('sum, select')
+        return True
+                
 
 
     # Add the metadata for a new record in the rid and schema pages

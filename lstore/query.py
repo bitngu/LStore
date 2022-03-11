@@ -12,6 +12,8 @@ class Query:
 
     def __init__(self, table):
         self.table = table
+        self.data = None
+        self.type = None
         pass
 
     """
@@ -22,10 +24,14 @@ class Query:
     """
 
     def delete(self, primary_key):
+        # Set the type of the query to be undone
+        self.type = 'delete'
         rid = self.table.locate_rid(primary_key)
         if not rid:
             return False
         rid = rid[0]
+        # Save the rid for abort
+        self.data = rid
         ret  = self.table.RID.grab_page(math.floor((rid - 1) / 512)).half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
         return True if ret else False
     """
@@ -35,10 +41,14 @@ class Query:
     """
 
     def insert(self, *columns):
+        # Set the type of the query to be undone
+        self.type = 'insert'
         # Format the data for insertion by table
         data = columns
         # Call to the table to handle insertion into its pages
         write = self.table.write(data)
+        # Save rid
+        self.data = write
         # Check that write returned successfully
         if not write:
             return False
@@ -69,9 +79,13 @@ class Query:
     """
 
     def update(self, primary_key, *columns):
+        # Set the type of the query to be undone
+        self.type = 'update'
         # Add the updated information to the table with a table write
         # Perform a table update
         ret = self.table.update(primary_key, columns)
+        # Save the data
+        self.data = ret
         if not ret:
             return False
         return True
@@ -108,3 +122,7 @@ class Query:
             u = self.update(key, *updated_columns)
             return u
         return False
+
+    def abort(self):
+        self.table.abort(self.type, self.data)
+        return True

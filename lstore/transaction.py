@@ -34,7 +34,7 @@ class Transaction:
             else:
                 # Keep track of how many queries have ran successfully
                 self.completed += 1
-                return self.commit(result)
+        return self.commit(result)
 
     # Rolls back if a query failed
     def abort(self):
@@ -44,7 +44,8 @@ class Transaction:
         return False
 
     def commit(self):
-        # Update the indirection table if a query succeeded
-        
+        # Commit each query to the database
+        for query in self.queries:
+            query.commit()
         return True
 

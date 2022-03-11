@@ -91,9 +91,9 @@ class Table:
         num_base = (len(self.page_directory.dir[0]['base']) - 1) * 512
         # Add primary key to dict for fast lookup
         self.primaryKeyLookup[columns[self.key]] = num_base + recordLoc
-        return self.set_meta( num_base + recordLoc)
+        # Return the rid to commit or abort
+        return num_base + recordLoc
         
-
     def update(self, primary_key, columns):
         # Find the record to be updated by the primary key
         record = self.locate_record(primary_key)
@@ -127,9 +127,8 @@ class Table:
             if i == self.key and self.key:
                 del self.primaryKeyLookup[record.key]
                 self.primaryKeyLookup[columns[i]] = rid
-        # *** This maybe should be used in transactions to commit the changes ***
-        # Update the record's metadata
-        return self.meta_update(record.rid, tail_rid)
+        # Return the rids for commit
+        return record.rid, tail_rid
 
     def __merge(self):
         # Create empty base update structure
@@ -209,24 +208,43 @@ class Table:
         # Create a new thread with the timer
         Timer(s, self.merge_timer).start()
 
-    def abort(self, rid, type):
+    def abort(self, type, rid, tail_rid):
+        # Perform a different operation depending on type
+        print(type)
+        match type:
+            case 'update':
+                # Iterate over each column
+                for dir in self.page_directory.dir:
+                    # Calculate where the tail rid is and overwrite it
+                    dir.tail[math.floor((tail_rid - 1) / 512)].half_write(0xFFFFFFFF, (tail_rid - 1) % 512, True, False)
+                return True
+            case 'insert':
+                # Iterate over each column
+                for dir in self.page_directory.dir:
+                    # Calculate where the base rid is and overwrite it
+                    dir.base[math.floor((rid - 1) / 512)].half_write(0xFFFFFFFF, (rid - 1) % 512, True, False)
+                return True
+        # Do nothing for sum, delete and select
+        print('sum, delete, select')
+        return True
+                
+    def commit(self, type, rid, tail_rid):
         # Perform a different operation depending on type
         print(type)
         match type:
             case 'delete':
-                print('delete')
+                # Update the rid page based on rid
+                self.RID.grab_page(math.floor((rid - 1) / 512)).half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
                 return True
             case 'update':
-                print('update')
-                return True
+                 # Update the record's metadata
+                return self.meta_update(rid, tail_rid)
             case 'insert':
-                print('insert')
-                return True
+                # Add the record's rid to the RID table
+                return self.set_meta(rid)
         # Do nothing for sum and select
         print('sum, select')
         return True
-                
-
 
     # Add the metadata for a new record in the rid and schema pages
     def set_meta(self, location):

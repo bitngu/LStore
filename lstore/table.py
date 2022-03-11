@@ -3,7 +3,8 @@ from lstore.page import Page
 from datetime import datetime
 from threading import Thread, Timer
 from lstore.page_dir import Directory, Meta
-from time import time
+#from time import time
+#from threading import get_ident
 import math
 
 INDIRECTION_COLUMN = 0
@@ -45,6 +46,8 @@ class Table:
         # Set timer for running merge
         self.timer = self.merge_timer()
         # Handle new pages vs reading from files
+        self.thread_man = {}
+        self.threads = {}
         if isNew:
             self.page_directory.set_as_new(path)
             self.RID.set_as_new(path, "RID.bin")
@@ -243,6 +246,12 @@ class Table:
         # Rid was not found returns false
         if not rids:
             return False
+
+        #GO through every RID found and Lock them if already 
+        #for r in rids:
+        #    locked = self.lock_rid(r)
+        #    if not locked:
+        #        return False
         records = []
         # Find the record for each rid
         for rid in rids:

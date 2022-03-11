@@ -33,7 +33,7 @@ class Directory:
 
             base_file.close()
             tail_file.close()
-            print("Finished saving to " + base_path + " and to " + tail_path)
+            
 
     def getEmptyPage(self, column, type):
         page = self.dir[column][type]
@@ -112,7 +112,6 @@ class Meta:
                 break
             file.write(self.data[i].data)
         file.close()
-        print('finished saving to ' + self.file_path)
 
     def getEmptyPage(self):
         if self.data[-1] == None:

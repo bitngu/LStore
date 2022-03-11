@@ -1,6 +1,7 @@
 from lstore.table import Table, Record
 from lstore.index import Index
 
+
 class Transaction:
 
     """
@@ -22,6 +23,7 @@ class Transaction:
     """
     def add_query(self, query, table, *args):
         self.queries.append((query, args))
+        self.table = table
         # use grades_table for aborting
         self.table = table
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort
@@ -51,5 +53,9 @@ class Transaction:
         # Commit each query to the database
         for type, data in self.completed:
             self.table.commit(type, data)
-        return True
+        # If an update fails, go through each page and delete the entry corresponding to the returned rid
+        
+        #After Abort is done unlock everything
+        self.table.unlock() 
+        return False
 

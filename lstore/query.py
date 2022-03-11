@@ -14,7 +14,6 @@ class Query:
         self.table = table
         self.rid = None
         self.tail_rid = None
-        self.type = None
         pass
 
     """
@@ -25,16 +24,13 @@ class Query:
     """
 
     def delete(self, primary_key):
-        # Set the type of the query to be undone
-        self.type = 'delete'
+        # Find the rid to be deleted
         rid = self.table.locate_rid(primary_key)
-        if not rid:
+        if rid is False:
             return False
         rid = rid[0]
-        # Save the rid for abort
-        self.rid = rid
-        ret  = self.table.RID.grab_page(math.floor((rid - 1) / 512)).half_write( 0xFFFFFFFF, (rid - 1) % 512, True, False)
-        return True if ret else False
+        # Return the rid to be updated or False if it fails
+        return rid if rid else False
     """
     # Insert a record with specified columns
     # Return True upon succesful insertion
@@ -42,17 +38,14 @@ class Query:
     """
 
     def insert(self, *columns):
-        # Set the type of the query to be undone
-        self.type = 'insert'
         # Call to the table to handle insertion into its pages
         write = self.table.write(columns)
-        # Save the rid
-        self.rid = write
         # Check that write returned successfully
-        if not write:
+        if write is False:
+            print('Fail!', write)
             return False
         else:
-            return True
+            return write
 
     """
     # Read a record with specified key
@@ -67,7 +60,7 @@ class Query:
     def select(self, index_value, index_column, query_columns):
         # Performs a table read to get the data
         ret = self.table.read(index_value, index_column, query_columns)
-        if not ret:
+        if ret is False:
             return False
         return ret
 
@@ -78,16 +71,13 @@ class Query:
     """
 
     def update(self, primary_key, *columns):
-        # Set the type of the query to be undone
-        self.type = 'update'
         # Perform a table update
         ret = self.table.update(primary_key, columns)
         # Exit if it fails
-        if not ret:
+        if ret is False:
             return False
-        # Save the rid and tail_rid
-        self.rid, self.tail_rid = ret()
-        return True
+        # Return the updated data if successful
+        return ret
 
     """
     :param start_range: int         # Start of the key range to aggregate 
@@ -122,10 +112,10 @@ class Query:
             return u
         return False
 
-    def abort(self):
-        self.table.abort(self.type, self.data)
-        return True
+    # def abort(self):
+    #     self.table.abort(self.type, self.data)
+    #     return True
 
-    def commit(self):
-        self.table.commit(self.type, self.data)
-        return True
+    # def commit(self):
+    #     self.table.commit(self.type, self.data)
+    #     return True

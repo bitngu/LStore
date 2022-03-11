@@ -79,6 +79,7 @@ class Database():
     # Returns table with the passed name
     """
     def get_table(self, name):
+        print(self.tables)
         if name in self.tables:
             return self.tables[name]
         return None

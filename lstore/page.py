@@ -1,3 +1,4 @@
+import math
 MAX_ENTRIES = 512
 MAX_INPUT = 0xFFFFFFFFFFFFFFFF
 class Page:
@@ -43,21 +44,21 @@ class Page:
             self.data[index:index + 4] = value.to_bytes( 4, 'big')
             if is_inc:
                 self.num_records += 1
-            return self.num_records
+            return location
         except:
             return False
 
     def write(self, value, location = None):
         
         try:
-            if self.has_capacity():
+            if self.has_capacity() or location and location < 512:
                 if location == None:
                     index = self.num_records * 8
                 else:
                     index = location * 8
                 self.data[index:index + 8] = value.to_bytes( 8, 'big')
                 self.num_records += 1
-                return self.num_records
+                return math.floor(index/8)
             return False 
         except:
             return False

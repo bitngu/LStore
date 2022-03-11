@@ -125,9 +125,9 @@ class Meta:
             return self.data[-1]
 
     def grab_page(self, location):
-        
-        if self.data[location] == None:
-            self.data[location] = Page()
+        # Adding new pages if needed
+        if len(self.data) <= location:
+            self.data.append(Page())
         return self.data[location]
 
     def set_as_new(self, path, file_name):

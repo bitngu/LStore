@@ -45,7 +45,6 @@ class Index:
     
     # Add a new record to the index
     def add_rid(self, rid):
-        
         # Check each possible index
         for column_number in range(0, self.table.num_columns):
             # Exit if no index for the column

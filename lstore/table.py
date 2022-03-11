@@ -144,9 +144,7 @@ class Table:
         # Find the records
         records = self.locate_record(index_value, False, index_column, query_columns)
         # Validate that records were found
-        if not records:
-            print("No records found for value ", index_value, "in column ", index_column)
-            print(self.index.indices[index_column][index_value])
+        if records is False:
             return False
         else:
             return records
@@ -190,10 +188,8 @@ class Table:
         # Find the record to be updated by the primary key
         record = self.locate_record(primary_key, True)[0]
         # Error if no record is found
-        if not record:
+        if record is False:
             return False
-        # Get the correct rid for the record
-        rid = record.rid - 1
         # Update the timestamp page
         # timestampLoc = getEmptyPage(self.timestamp).write(time.time())
         # Location of updated tail
@@ -204,7 +200,7 @@ class Table:
             page = self.page_directory.getEmptyPage(i, 'tail')
             # If column value is None, insert the record.column[i] into tail instead
             updatedLoc = None
-            if columns[i] == None:
+            if columns[i] is None:
                 updatedLoc = page.write(record.columns[i], tail_rid)
             else: # Otherwise insert the new value
                 updatedLoc = page.write(columns[i], tail_rid)
@@ -215,7 +211,7 @@ class Table:
             if tail_rid != updatedLoc:
                 return False
         # Return the rids for commit
-        return rid, tail_rid
+        return record.rid - 1, tail_rid
 
     def __merge(self):
         # Create empty base update structure
@@ -297,7 +293,6 @@ class Table:
 
     def abort(self, type, data):
         # Perform a different operation depending on type
-        print("aborting!!!!!!!!!")
         match type:
             case 'update':
                 # Iterate over each column
@@ -316,7 +311,6 @@ class Table:
         return True
                 
     def commit(self, type, data):
-        print('commit')
         # Perform a different operation depending on type
         match type:
             case 'delete':
@@ -326,10 +320,9 @@ class Table:
             case 'update':
                 # Update the record's metadata
                 rid, tail_rid = data
-                print(rid, " : ", tail_rid)
                 self.meta_update(rid, tail_rid)
                 # Update indexes if needed
-                return self.index.update_rid(rid)
+                return self.index.update_rid(rid + 1)
             case 'insert':
                 # Add the record's rid to the RID table
                 self.set_meta(data + 1)
@@ -350,7 +343,7 @@ class Table:
     # Updates a record based on the rid and the rid of the tail+
     def meta_update(self, rid, tail_rid):
         # Get correct rid reference
-        rid = rid - 1
+        #rid = rid - 1
         # Get an indirection page
         ind_page = self.indirection.getEmptyPage()
         tail_size = len(self.page_directory.dir[0]['tail']) - 1
@@ -366,7 +359,8 @@ class Table:
         if prev_ind > 0:
             ind_page.half_write(prev_ind, (tail_loc - 1) % 512, False, False)
         # Update the location of the indirection in the second half of the rid column
-        rid_page.half_write( tail_loc, rid % 512, False, False)
+        rid_page.half_write(tail_loc, rid % 512, False, False)
+        print("This: ", rid_page.half_read(rid % 512, False), " should be this ", tail_loc)
         schema_page = self.schema.grab_page(math.floor(rid / 512))
         schema_page.half_write( 1, rid % 512, False, False)
         return True
@@ -414,10 +408,10 @@ class Table:
                 if is_mod:
                     # Get the indirection RID
                     rid_page = self.RID.grab_page(math.floor(rid / 512))
-                    ind = rid_page.half_read( rid % 512, False) - 1
+                    ind = rid_page.half_read( rid % 512, False)
                     # Find the RID of the tail
                     ind_page = self.indirection.grab_page(math.floor(ind / 512))
-                    tail_rid = ind_page.half_read(ind % 512, True) - 1
+                    tail_rid = ind_page.half_read(ind % 512, True)
                     if tail_rid < base.get_tps():
                         val = base.read(rid % 512)
                     else:
@@ -431,6 +425,7 @@ class Table:
                     val = base.read(rid % 512)
                     # Add the value to the record columns to be returned
                     col.append(val)
+            #print("COL: ", col)
             # Save the record with populated columns to the list
             records.append(Record(rid + 1, key, col))
             #records.append(col)

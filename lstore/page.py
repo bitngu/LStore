@@ -29,7 +29,8 @@ class Page:
         try:
             if location < 512:
                 index  = location * 8
-                return int.from_bytes(self.data[index:index + 8], 'big')
+                data = int.from_bytes(self.data[index:index + 8], 'big')
+                return data
             return False 
         except:
             return False 
@@ -37,16 +38,19 @@ class Page:
     def half_write(self, value, location, is_upper, is_inc):
         upper = 0 if is_upper else 4
         try:
+            # This is throwing an error for some reason
             if not self.has_capacity() and is_inc:
                 return False 
-                
             index = (location * 8) + upper
             self.data[index:index + 4] = value.to_bytes( 4, 'big')
             if is_inc:
                 self.num_records += 1
-            return location
+            int.from_bytes(self.data[index:index + 4], 'big')
         except:
+            print("ERROR")
             return False
+        else:
+            return location
 
     def write(self, value, location = None):
         

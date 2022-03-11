@@ -23,7 +23,6 @@ class Transaction:
     """
     def add_query(self, query, table, *args):
         self.queries.append((query, args))
-        self.table = table
         # use grades_table for aborting
         self.table = table
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort

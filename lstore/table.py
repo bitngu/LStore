@@ -164,10 +164,6 @@ class Table:
             page = self.page_directory.getEmptyPage(i, 'base')
             # Perform the insert for that column
             recordLoc = page.write(columns[i], loc)
-
-            if i == 0:
-                recordLoc = None
-            recordLoc = page.write(columns[i], recordLoc if recordLoc == None else recordLoc -1)
             # Initialize the location for all columns
             if not loc:
                 loc = recordLoc
@@ -206,17 +202,14 @@ class Table:
         for i in range(0, len(columns)):
             # Find or create an empty page for tail
             page = self.page_directory.getEmptyPage(i, 'tail')
-
-            if i == 0:
-                updatedLoc = None
             # If column value is None, insert the record.column[i] into tail instead
             updatedLoc = None
             if columns[i] == None:
-                updatedLoc = page.write(record.columns[i], updatedLoc if updatedLoc == None else updatedLoc - 1)
+                updatedLoc = page.write(record.columns[i], tail_rid)
             else: # Otherwise insert the new value
-                updatedLoc = page.write(columns[i], updatedLoc if updatedLoc == None else updatedLoc - 1)
+                updatedLoc = page.write(columns[i], tail_rid)
             # Save or check the location to be written to the tail
-            if not tail_rid:
+            if tail_rid is None:
                 # Initialize tail_rid
                 tail_rid = updatedLoc
             if tail_rid != updatedLoc:
@@ -365,7 +358,6 @@ class Table:
         tail_loc = ind_page.half_write((tail_size * 512) + tail_rid, ind_page.num_records, True, True)
         # Calculate the location of the new tail
         tail_loc = ((len(self.indirection.data) - 1) * 512) + tail_loc
-        # *** This will be moved out for transactions in milestone 3 ***
         # Grab the previous ind location from the rid column
         rid_page = self.RID.grab_page(math.floor(rid / 512))
         prev_ind = rid_page.half_read(rid % 512, False)
@@ -376,7 +368,7 @@ class Table:
         # Update the location of the indirection in the second half of the rid column
         rid_page.half_write( tail_loc, rid % 512, False, False)
         schema_page = self.schema.grab_page(math.floor(rid / 512))
-        ret = schema_page.half_write( 1, rid % 512, False, False)
+        schema_page.half_write( 1, rid % 512, False, False)
         return True
     
     # Gets a full record based on primary key or multiple records based on specific column

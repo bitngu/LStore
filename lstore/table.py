@@ -38,6 +38,8 @@ class Table:
         self.indirection = Meta()
         # Create Schema page
         self.schema = Meta()
+        # Create Primary key lookup dict
+        self.primaryKeyLookup = {}
         # Create Timestamp page
         #self.timestamp = Meta()
         # Assign index reference
@@ -89,6 +91,8 @@ class Table:
                 return False
         # RecordLoc should be the same across all columns
         num_base = (len(self.page_directory.dir[0]['base']) - 1) * 512
+        # Add primary key to dict for fast lookup
+        self.primaryKeyLookup[columns[self.key]] = num_base + recordLoc
         return self.set_meta( num_base + recordLoc)
         
 
@@ -121,6 +125,10 @@ class Table:
                 # Check to make sure that the tail_rid matches the returned location
                 if tail_rid != updatedLoc:
                     return False
+            # Check if the column is the primary key
+            if i == self.key and self.key:
+                del self.primaryKeyLookup[record.key]
+                self.primaryKeyLookup[columns[i]] = rid
         # *** This maybe should be used in transactions to commit the changes ***
         # Update the record's metadata
         return self.meta_update(record.rid, tail_rid)
@@ -203,6 +211,12 @@ class Table:
         # Create a new thread with the timer
         Timer(s, self.merge_timer).start()
 
+    def abort(self, rid):
+        # Iterate over each tail page
+        for i in range(0, self.table.num_columns):
+            for dir in self.table.page_directory[i]
+
+
     # Add the metadata for a new record in the rid and schema pages
     def set_meta(self, location):
         # Add new entries into the RID page
@@ -253,7 +267,6 @@ class Table:
                 return False
             # Calculate the correct rid
             rid = rid - 1
-            
             # Columns associated with the record here
             col = []
             # check the to see if the record has been modified
@@ -333,9 +346,11 @@ class Table:
 
     # Finds a record's rid based on the primary key
     def locate_rid(self, key, index = None):
-        # Default index to primary key
-        if not index:
-            index = self.key
+        # Expedite primary key lookup
+        if (not index) or (index == self.key):
+            if key in self.primaryKeyLookup:
+                return [self.primaryKeyLookup[key]]
+            return False
         # Set of pages we are looking through
         # Array of rids
         rids = []

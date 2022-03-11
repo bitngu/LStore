@@ -1,6 +1,7 @@
 from lstore.table import Table, Record
 from lstore.index import Index
 
+
 class Transaction:
 
     """
@@ -8,6 +9,7 @@ class Transaction:
     """
     def __init__(self):
         self.queries = []
+        self.table = None
         pass
 
     """
@@ -19,6 +21,7 @@ class Transaction:
     """
     def add_query(self, table, query, *args):
         self.queries.append((query, args))
+        self.table = table
         # use grades_table for aborting
 
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort
@@ -31,13 +34,15 @@ class Transaction:
         return self.commit(result)
 
     # Rolls back if a query failed
-    def abort(self, tail_rids):
+    def abort(self):
         # If an update fails, go through each page and delete the entry corresponding to the returned rid
-
+        
+        #After Abort is done unlock everything
+        self.table.unlock() 
         return False
 
-    def commit(self, tail_rids):
+    def commit(self):
         # Update the indirection table if a query succeeded
-        
+        self.table.unlock()
         return True
 

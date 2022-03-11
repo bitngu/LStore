@@ -1,9 +1,11 @@
+import threading
 from lstore.index import Index
 from lstore.page import Page
 from datetime import datetime
 from threading import Thread, Timer
 from lstore.page_dir import Directory, Meta
-from time import time
+#from time import time
+import threading
 import math
 
 INDIRECTION_COLUMN = 0
@@ -44,25 +46,100 @@ class Table:
         self.index = Index(self)
         # Set timer for running merge
         self.timer = self.merge_timer()
+        
+        self.thread_man_x = {}
+        self.threads_x = {}
+        self.thread_man_s = {}
+        self.threads_s = {}
         # Handle new pages vs reading from files
         if isNew:
-            pass
-            #self.page_directory.set_as_new(path)
-            #self.RID.set_as_new(path, "RID.bin")
-            #self.indirection.set_as_new(path, "indirection.bin")
-            #self.schema.set_as_new(path, "schema.bin")
+            self.page_directory.set_as_new(path)
+            self.RID.set_as_new(path, "RID.bin")
+            self.indirection.set_as_new(path, "indirection.bin")
+            self.schema.set_as_new(path, "schema.bin")
         else:
-            pass
-            #self.page_directory.set_as_old(path)
-            #self.RID.set_as_old(path, "RID.bin")
-            #self.indirection.set_as_old(path, "indirection.bin")
-            #self.schema.set_as_old(path, "schema.bin")
+            self.page_directory.set_as_old(path)
+            self.RID.set_as_old(path, "RID.bin")
+            self.indirection.set_as_old(path, "indirection.bin")
+            self.schema.set_as_old(path, "schema.bin")
 
+
+    def lock_ridx(self, rid):
+        tid = threading.get_ident()
+        if not tid in self.threads_x:
+            self.threads_x[tid] = []
+
+        if not tid in self.threads_s:
+            self.threads_s[tid] = []
+
+        if rid in self.threads_x[tid]:
+            return True
+        
+        if rid in self.thread_man_x:
+            return False
+
+        if rid in self.thread_man_s:
+            if len(self.thread_man_s[rid]) > 1:
+                return False
+
+            if self.thread_man_s[rid][0] == tid:
+                del self.thread_man_s[rid]
+                self.threads_s[tid].remove(rid)
+            else:
+                return False  
+
+        self.thread_man_x[rid] = tid
+        self.threads_x[tid].append(rid)
+        return True
+
+    def lock_rids(self, rid):
+        tid = threading.get_ident()
+        if not tid in self.threads_s:
+            self.threads_s[tid] = []
+
+        if not tid in self.threads_x:
+            self.threads_x[tid] = []
+
+        if rid in self.threads_x[tid]:
+            return True
+
+        if rid in self.threads_s[tid]:
+            return True
+
+        if rid in self.thread_man_x:
+            return False
+
+        if rid in self.thread_man_s:
+            self.thread_man_s[rid].append(tid)
+            return True
+
+        self.thread_man_s[rid] = [tid]
+        self.threads_s[tid].append(rid)
+        return True
+
+    def unlock(self):
+        tid = threading.get_ident()
+        
+        if tid in self.threads_x:
+            for rid in self.threads_x[tid]:
+                del self.thread_man_x[rid]
+            
+            del self.threads_x[tid]
+
+        if tid in self.threads_s:
+            for rid in self.threads_s[tid]:
+                self.thread_man_s[rid].remove(tid)
+                if len(self.thread_man_s[rid]) == 0:
+                    del self.thread_man_s[rid]
+
+            del self.threads_s[tid]
+
+        return True
 
     # Finds all records matching index_value in the column index_column. Only returns values from query_column
     def read(self, index_value, index_column, query_columns):
         # Find the records
-        records = self.locate_record(index_value, index_column, query_columns)
+        records = self.locate_record(index_value, False, index_column, query_columns)
         # Validate that records were found
         if not records:
             return False
@@ -83,10 +160,20 @@ class Table:
             # Find or create an empty page for base
             page = self.page_directory.getEmptyPage(i, 'base')
             # Perform the insert for that column
-            recordLoc = page.write(columns[i])
+            if i == 0:
+                recordLoc = None
+            recordLoc = page.write(columns[i], recordLoc if recordLoc == None else recordLoc -1)
             # Exit if the write did not work
             if not recordLoc:
                 return False
+            
+            if i == 0:
+                num_base = (len(self.page_directory.dir[0]['base']) - 1) * 512
+                #Should Be EXclusive
+                locked = self.lock_ridx(num_base + recordLoc)
+                if not locked:
+                   return False
+
         # RecordLoc should be the same across all columns
         num_base = (len(self.page_directory.dir[0]['base']) - 1) * 512
         return self.set_meta( num_base + recordLoc)
@@ -94,7 +181,7 @@ class Table:
 
     def update(self, primary_key, columns):
         # Find the record to be updated by the primary key
-        record = self.locate_record(primary_key)
+        record = self.locate_record(primary_key, True)
         # Error if no record is found
         if not record:
             return False
@@ -107,12 +194,15 @@ class Table:
         # Update the columns and pass to meta_update on completion
         for i in range(0, len(columns)):
             # Find or create an empty page for tail
-            page = self.page_directory.getEmptyPage(i, 'tail')#getEmptyPage(self.page_directory[i]['tail'])
+            page = self.page_directory.getEmptyPage(i, 'tail')
+
+            if i == 0:
+                updatedLoc = None
             # If column value is None, insert the record.column[i] into tail instead
             if columns[i] == None:
-                updatedLoc = page.write(record.columns[i])
+                updatedLoc = page.write(record.columns[i], updatedLoc if updatedLoc == None else updatedLoc - 1)
             else: # Otherwise insert the new value
-                updatedLoc = page.write(columns[i])
+                updatedLoc = page.write(columns[i], updatedLoc if updatedLoc == None else updatedLoc - 1)
             # Save or check the location to be written to the tail
             if not tail_rid:
                 # Initialize tail_rid
@@ -210,7 +300,7 @@ class Table:
         # Add new entries into the schema page
         schema = self.schema.getEmptyPage()
         # Write RID for new inserted record and initialize schema for record
-        return rid.half_write(location, (location - 1) % 512, True, True) and schema.write(0)
+        return rid.half_write(location, (location - 1) % 512, True, True) and schema.write(0, (location - 1) % 512)
 
     # Updates a record based on the rid and the rid of the tail+
     def meta_update(self, rid, tail_rid):
@@ -238,13 +328,22 @@ class Table:
         return True
     
     # Gets a full record based on primary key or multiple records based on specific column
-    def locate_record(self, key, columnIndex = None, selectColumns = None):
+    def locate_record(self, key, isEx = False, columnIndex = None, selectColumns = None):
         # Find the rids based on the columnIndex
         rids = self.locate_rid(key, columnIndex)
         # List of records to return
         # Rid was not found returns false
         if not rids:
             return False
+
+        #GO through every RID found and Lock them if already 
+        for r in rids:
+            if isEx:
+                locked = self.lock_ridx(r)
+            else:
+                locked = self.lock_rids(r)
+            if not locked:
+                return False
         records = []
         # Find the record for each rid
         for rid in rids:
@@ -342,11 +441,15 @@ class Table:
         # Loops through every rid page
         for i in range(0, len(self.RID.data)):
             # Exit if primary key has already been found
+        
             if index == self.key and not len(rids) == 0:
                 break
             rid_page = self.RID.grab_page(i)
+            if rid_page == None:
+                continue
             # Loops through every entry in rid page
             for j in range(0, rid_page.num_records):
+                
                 # Exit if primary key has already been found
                 if index == self.key and not len(rids) == 0:
                     break
@@ -354,6 +457,9 @@ class Table:
                 # Checks if RID has been deleted  and skips this rid
                 if rid == 0xFFFFFFFF - 1:
                     continue
+
+                if rid == -1:
+                    break
                 #checks if schema has been modified
                 schema_page = self.schema.grab_page(math.floor(rid / 512))
                 is_mod = schema_page.read(rid % 512) == 0
@@ -392,13 +498,17 @@ class Table:
         for i in range(0, len(self.RID.data)):
             # Grab the current RID page we are working on
             rid_page = self.RID.grab_page(i)
+            if rid_page == None:
+                continue
             #loop through every entry in the current RID page
             for j in range(0, rid_page.num_records):
                 # Grab the current RID and Check if it is deleted
                 rid = rid_page.half_read(j, True) - 1
                 if rid == 0xFFFFFFFF - 1:
                     continue
-
+                
+                if rid == -1:
+                    break
                 # Check if the RID has been modefied
                 schema_page = self.schema.grab_page(math.floor(rid / 512))
                 if schema_page.read(rid % 512) == 0:
@@ -407,6 +517,9 @@ class Table:
                     k_val = key_page.read(rid % 512)
                     # Check if it is in range and append it to the list to return
                     if k_val >= start and k_val <= end:
+                        locked = self.lock_rids(rid + 1)
+                        if not locked:
+                             return False
                         val_page = self.page_directory.grab_page(index, 'base', math.floor(rid / 512))
                         val = val_page.read(rid % 512)
                         found.append(val)
@@ -420,50 +533,24 @@ class Table:
                     k_val = key_page.read(tail_rid % 512)
                     # check if it is in range and append it to the list to return
                     if k_val >= start and k_val <= end:
+                        locked = self.lock_rids(rid + 1)
+                        if not locked:
+                             return False
                         val_page = self.page_directory.grab_page(index, 'tail', math.floor(tail_rid / 512))
                         val = val_page.read(tail_rid % 512)
                         found.append(val)
         return found
 
-    def load_col(self, file_path, file_size, col = None):
-        if col == None:
-            self.RID = []
-            pages = self.RID
-        else:
-            self.page_directory[col]['base'] = []
-            pages = self.page_directory[col]['base']
 
-        file = open(file_path, 'rb')
-        for i in range(0, math.floor(file_size / 4096)):
-            page = Page()
-            page.data = file.read(4096)
-            pages.append(page)
-        file.close()
 
-    def set_cap(self):
-        last_rid = self.RID[-1]
-        last = 512
-        for i in range(0, 512):
-            if last_rid.read(i) == 0:
-                last = i
-                break
+    def save(self):
 
-        last_rid.num_records = last
-
-        for i in range(0, self.num_columns):
-            self.page_directory[i]['base'][-1].num_records = last
-
-    def save(self, file_path, col = None):
-        if col == None:
-            pages = self.RID
-        else:
-            pages = self.page_directory[col]['base']
-
-        file = open(file_path, 'wb')
-        for i in range(0, len(pages)):
-            # Check if page is dirty if page is dirty write to file
-            file.seek(i * 4096)
-            file.write(pages[i].data)
+        self.RID.save()
+        # Create Indirection page
+        self.indirection.save()
+        # Create Schema page
+        self.schema.save()
+        self.page_directory.save()
 
             
 

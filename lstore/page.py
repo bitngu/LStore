@@ -1,3 +1,4 @@
+import math
 MAX_ENTRIES = 512
 MAX_INPUT = 0xFFFFFFFFFFFFFFFF
 class Page:
@@ -28,7 +29,8 @@ class Page:
         try:
             if location < 512:
                 index  = location * 8
-                return int.from_bytes(self.data[index:index + 8], 'big')
+                data = int.from_bytes(self.data[index:index + 8], 'big')
+                return data
             return False 
         except:
             return False 
@@ -36,28 +38,31 @@ class Page:
     def half_write(self, value, location, is_upper, is_inc):
         upper = 0 if is_upper else 4
         try:
+            # This is throwing an error for some reason
             if not self.has_capacity() and is_inc:
                 return False 
-                
             index = (location * 8) + upper
             self.data[index:index + 4] = value.to_bytes( 4, 'big')
             if is_inc:
                 self.num_records += 1
-            return self.num_records
+            int.from_bytes(self.data[index:index + 4], 'big')
         except:
+            print("ERROR")
             return False
+        else:
+            return location
 
     def write(self, value, location = None):
         
         try:
-            if self.has_capacity():
+            if self.has_capacity() or location and location < 512:
                 if location == None:
                     index = self.num_records * 8
                 else:
                     index = location * 8
                 self.data[index:index + 8] = value.to_bytes( 8, 'big')
                 self.num_records += 1
-                return self.num_records
+                return math.floor(index/8)
             return False 
         except:
             return False

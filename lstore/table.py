@@ -48,17 +48,15 @@ class Table:
         self.timer = self.merge_timer()
         # Handle new pages vs reading from files
         if isNew:
-            pass
-            #self.page_directory.set_as_new(path)
-            #self.RID.set_as_new(path, "RID.bin")
-            #self.indirection.set_as_new(path, "indirection.bin")
-            #self.schema.set_as_new(path, "schema.bin")
+            self.page_directory.set_as_new(path)
+            self.RID.set_as_new(path, "RID.bin")
+            self.indirection.set_as_new(path, "indirection.bin")
+            self.schema.set_as_new(path, "schema.bin")
         else:
-            pass
-            #self.page_directory.set_as_old(path)
-            #self.RID.set_as_old(path, "RID.bin")
-            #self.indirection.set_as_old(path, "indirection.bin")
-            #self.schema.set_as_old(path, "schema.bin")
+            self.page_directory.set_as_old(path)
+            self.RID.set_as_old(path, "RID.bin")
+            self.indirection.set_as_old(path, "indirection.bin")
+            self.schema.set_as_old(path, "schema.bin")
 
 
     # Finds all records matching index_value in the column index_column. Only returns values from query_column
@@ -357,11 +355,15 @@ class Table:
         # Loops through every rid page
         for i in range(0, len(self.RID.data)):
             # Exit if primary key has already been found
+        
             if index == self.key and not len(rids) == 0:
                 break
             rid_page = self.RID.grab_page(i)
+            if rid_page == None:
+                continue
             # Loops through every entry in rid page
             for j in range(0, rid_page.num_records):
+                
                 # Exit if primary key has already been found
                 if index == self.key and not len(rids) == 0:
                     break
@@ -369,6 +371,9 @@ class Table:
                 # Checks if RID has been deleted  and skips this rid
                 if rid == 0xFFFFFFFF - 1:
                     continue
+
+                if rid == -1:
+                    break
                 #checks if schema has been modified
                 schema_page = self.schema.grab_page(math.floor(rid / 512))
                 is_mod = schema_page.read(rid % 512) == 0
@@ -407,13 +412,17 @@ class Table:
         for i in range(0, len(self.RID.data)):
             # Grab the current RID page we are working on
             rid_page = self.RID.grab_page(i)
+            if rid_page == None:
+                continue
             #loop through every entry in the current RID page
             for j in range(0, rid_page.num_records):
                 # Grab the current RID and Check if it is deleted
                 rid = rid_page.half_read(j, True) - 1
                 if rid == 0xFFFFFFFF - 1:
                     continue
-
+                
+                if rid == -1:
+                    break
                 # Check if the RID has been modefied
                 schema_page = self.schema.grab_page(math.floor(rid / 512))
                 if schema_page.read(rid % 512) == 0:
@@ -440,45 +449,16 @@ class Table:
                         found.append(val)
         return found
 
-    def load_col(self, file_path, file_size, col = None):
-        if col == None:
-            self.RID = []
-            pages = self.RID
-        else:
-            self.page_directory[col]['base'] = []
-            pages = self.page_directory[col]['base']
 
-        file = open(file_path, 'rb')
-        for i in range(0, math.floor(file_size / 4096)):
-            page = Page()
-            page.data = file.read(4096)
-            pages.append(page)
-        file.close()
 
-    def set_cap(self):
-        last_rid = self.RID[-1]
-        last = 512
-        for i in range(0, 512):
-            if last_rid.read(i) == 0:
-                last = i
-                break
+    def save(self):
 
-        last_rid.num_records = last
-
-        for i in range(0, self.num_columns):
-            self.page_directory[i]['base'][-1].num_records = last
-
-    def save(self, file_path, col = None):
-        if col == None:
-            pages = self.RID
-        else:
-            pages = self.page_directory[col]['base']
-
-        file = open(file_path, 'wb')
-        for i in range(0, len(pages)):
-            # Check if page is dirty if page is dirty write to file
-            file.seek(i * 4096)
-            file.write(pages[i].data)
+        self.RID.save()
+        # Create Indirection page
+        self.indirection.save()
+        # Create Schema page
+        self.schema.save()
+        self.page_directory.save()
 
             
 

@@ -63,6 +63,9 @@ class Directory:
             base_file.close()
             tail_file = open( tail_path, 'wb')
             tail_file.close()
+            self.dir[i]['base'].append(None)
+            self.dir[i]['tail'].append(None)
+
             
     def set_as_old( self, path):
         self.path = path
@@ -133,6 +136,7 @@ class Meta:
         file = open( self.file_path, 'wb')
         #file.write(page.data)
         file.close()
+        self.data.append(None)
 
 
     def set_as_old(self, path, file_name):

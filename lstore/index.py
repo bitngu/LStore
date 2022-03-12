@@ -1,22 +1,29 @@
+from threading import Lock
 """
 A data strucutre holding indices for various columns of a table. Key column should be indexd by default, other columns can be indexed through this object. Indices are usually B-Trees, but other data structures can be used as well.
 """
 class Index:
 
     def __init__(self, table):
-        # One index for each table. All our empty initially.
-        self.indices = [] * table.page_directory.num_cols
-        self.RID = table.RID
-        self.indirection = table.indirection
-        self.schema = table.schema
+        # One index for each column. All our empty initially.
+        self.indices = [None] * table.num_columns
+        self.table = table
         self.key = table.key
+        self.mutex = Lock()
+        # Create indexes for all parameters
+        self.create_index(self.key)
+        # for i in range(0, table.num_columns):
+        #     self.create_index(i)
 
     """
     # returns the location of all records with the given value on column "column"
     """
 
     def locate(self, column, value):
-        pass
+        self.mutex.acquire()
+        ret = self.indices[column][value] if value in self.indices[column] else False
+        self.mutex.release()
+        return ret
 
     """
     # Returns the RIDs of all records with values in column "column" between "begin" and "end"
@@ -26,29 +33,99 @@ class Index:
         pass
 
     """
-    # optional: Create index on specific column
+    # optional: Create empty index on specific column
     """
 
     def create_index(self, column_number):
+        # Validate column_number is in range
+        self.mutex.acquire()
         if column_number >= len(self.indices) or column_number < 0:
             return False
-        newInd = []
-        count = 0
-
-        for i in self.indices[column_number]:
-            newInd.append(count)
-            count += 1
-        self.indices[column_number] = newInd
-
+        # Check for existing index
+        if self.indices[column_number] is not None:
+            return self.indices[column_number]
+        # Iterate over exiting pages and add all values into the index
+        self.indices[column_number] = self.table.getIndexColumn(column_number)
+        # Return success
+        self.mutex.release()
         return True
+    
+    # Add a new record to the index
+    def add_rid(self, rid):
+        # Check each possible index
+        self.mutex.acquire()
+        for column_number in range(0, self.table.num_columns):
+            # Exit if no index for the column
+            if self.indices[column_number] is None:
+                continue
+            # Get the value
+            value = self.table.locate_column_by_rid(rid, column_number)
+            # Initialize the value index if necessary
+            if not value in self.indices[column_number]:
+                self.indices[column_number][value] = [rid]
+            else:
+                if rid not in self.indices[column_number][value]:
+                    # Add the rid
+                    self.indices[column_number][value].append(rid)
+
+        self.mutex.release()
+        return True
+    
+    # Edit a record in the index
+    def update_rid(self, rid):
+        # Check each possible index
+        self.mutex.acquire()
+        for column_number in range(0, self.table.num_columns):
+            # Exit if no index for the column
+            if self.indices[column_number] is None:
+                continue
+            # Find and remove the instance of the rid
+            for val in self.indices[column_number]:
+                if rid in self.indices[column_number][val]:
+                    self.indices[column_number][val].remove(rid)
+            # Get the value
+            value = self.table.locate_column_by_rid(rid, column_number)
+            # Initialize the value index if necessary
+            if not value in self.indices[column_number]:
+                self.indices[column_number][value] = []
+            # Add the rid
+            self.indices[column_number][value].append(rid)
+        self.mutex.release()
+        return True
+    
+    # Delete a record in the index
+    def delete_rid(self, rid):
+        # Check each possible index
+        self.mutex.acquire()
+        for column_number in range(0, self.table.num_columns):
+            # Exit if no index for the column
+            if self.indices[column_number] is None:
+                continue
+            # Find and remove the instance of the rid
+            for val in self.indices[column_number]:
+                if rid in self.indices[column_number][val]:
+                    self.indices[column_number][val].remove(rid)
+                    break
+        self.mutex.release()
+        return True
+
+    def isIndex(self, column_number):
+        self.mutex.acquire()
+        ret = self.indices[column_number] is not None
+        self.mutex.release()
+        return ret
     """
     # optional: Drop index of specific column
     """
 
     def drop_index(self, column_number):
+        self.mutex.acquire()
         if column_number >= len(self.indices) or column_number < 0:
+            self.mutex.release()
             return False
         newInd = []
         for i in enumerate(self.indices[column_number]):
             self.indices[column_number][i] == None
+
+        self.mutex.release()
         return True

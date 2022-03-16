@@ -11,26 +11,28 @@ class Database():
 
     # Not required for milestone1
     def open(self, path):
-        #self.path = path
-        pass
+
+        self.path = path
         #check if path exist if it does not exist create a directory
-        #if not os.path.isdir(path):
-        #    os.makedirs(path)
+        if not os.path.isdir(path):
+            os.makedirs(path)
         #Finds every subdirectory in the given path
         #And creates its appropriate table
-        #for i in os.walk(path):
-        #    for j in i[1]:
-        #        self.grab_table(j, os.path.join(i[0], j))
+        for i in os.walk(path):
+            for j in i[1]:
+                self.grab_table(j, os.path.join(i[0], j))
 
     def close(self):
-        pass
-        #for i in os.walk(self.path):
-        #    for j in i[1]:
-        #        self.save_table(j, os.path.join(i[0], j))
+        print('Closing Database')
+        for i in os.walk(self.path):
+            for j in i[1]:
+                self.save_table(j)
 
-    def save_table(self, name, path):
+        print('Database is Now closed')
+
+    def save_table(self, name):
         table = self.get_table(name)
-        table.save(path)
+        table.save()
 
     #Given name and Path of table it generates a table 
     def grab_table(self, name, path):
@@ -47,22 +49,23 @@ class Database():
     :param key: int             #Index of table key in columns
     """
     def create_table(self, name, num_columns, key_index):
-        #if not self.path == None:
-        #    print(self.path)
-        #    meta_page = Page()
-        #    meta_page.write(num_columns)
-        #    meta_page.write(key_index)
-        #    meta_path = os.path.join(self.path, "meta.bin")
-        #    mfile = open(meta_path, "rb")
-        #    mfile.write(meta_page.data)
-        #    mfile.close()
-        #    path = os.path.join(self.path, name)
-        #    os.makedirs(path)
-        table = Table(name, num_columns, key_index, self.path, True)
-        self.tables[name] = table
+        if not self.path == None:
+            table_path = os.path.join(self.path, name)
+            if not os.path.isdir(table_path):
+                os.makedirs(table_path)
+            meta_page = Page()
+            meta_page.write(num_columns)
+            meta_page.write(key_index)
+            meta_path = os.path.join(table_path, "meta.bin")
+            mfile = open(meta_path, "wb")
+            mfile.write(meta_page.data)
+            mfile.close()
+            table = Table(name, num_columns, key_index, table_path, True)
+            self.tables[name] = table
         
-        return table
-
+            return table
+        return False
+        
     """
     # Deletes the specified table
     """
@@ -76,6 +79,7 @@ class Database():
     # Returns table with the passed name
     """
     def get_table(self, name):
+        #print(self.tables)
         if name in self.tables:
             return self.tables[name]
         return None
